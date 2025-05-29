@@ -1,8 +1,11 @@
+version: "2"
 linters:
   enable-all: true
   disable:
     # Deprecated
     - gomnd
+    - exportloopref
+    - execinquery
 
     # We don't want these ones
     - forcetypeassert
@@ -47,3 +50,4 @@ linters-settings:
     sections:
       - standard
       - default
+...
