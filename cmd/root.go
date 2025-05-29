@@ -1,22 +1,20 @@
-/*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-*/
+// Package cmd
 package cmd
 
 import (
 	"fmt"
+	"log"
+	"os"
+
 	"github.com/helvethink/gitlab-ci-exporter/internal/collectors"
 	"github.com/helvethink/gitlab-ci-exporter/internal/httpServer"
 	"github.com/helvethink/gitlab-ci-exporter/internal/logging"
 	"github.com/prometheus/common/version"
-	"log"
-	"os"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-// rootCmd represents the base command when called without any subcommands
+// rootCmd represents the base command when called without any subcommands.
 var rootCmd = &cobra.Command{
 	Use:   "gitlab-ci-exporter",
 	Short: "A gitlab CI exporter",
@@ -56,6 +54,7 @@ func Execute() {
 	}
 }
 
+// gochecknoinits:skip
 func init() {
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,

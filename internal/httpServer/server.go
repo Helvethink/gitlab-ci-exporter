@@ -21,8 +21,8 @@ const (
 	</html>`
 )
 
-// Serves root page with html template on root page
-// Serves metrics on settings.MetricPath
+// NewServer Serves root page with html template on root page
+// Serves metrics on settings.MetricPath.
 func NewServer(e *collectors.Exporter) *http.Server {
 	s := e.Settings
 	t := template.Must(template.New("root").Parse(rootTemplate))
@@ -30,9 +30,9 @@ func NewServer(e *collectors.Exporter) *http.Server {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(
 		e,
-		//versioncollector.NewCollector("exporter"),
-		//promCollectors.NewBuildCollector(),
-		//promCollectors.NewGoCollector(),
+		// versioncollector.NewCollector("exporter"),
+		// promCollectors.NewBuildCollector(),
+		// promCollectors.NewGoCollector(),
 	)
 
 	promHandlerOpts := promhttp.HandlerOpts{
