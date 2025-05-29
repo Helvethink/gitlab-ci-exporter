@@ -1,0 +1,49 @@
+linters:
+  enable-all: true
+  disable:
+    # Deprecated
+    - gomnd
+
+    # We don't want these ones
+    - forcetypeassert
+    - gochecknoglobals
+    - godox
+    - ireturn
+    - nakedret
+    - testpackage
+    - varnamelen
+    - interfacebloat
+    - wsl
+
+    # TODO
+    - tagliatelle
+    - promlinter
+    - paralleltest
+    - gocognit
+    - gomoddirectives
+    - forbidigo
+    - goconst
+    - mnd
+    - lll
+    - dupl
+    - depguard
+    - tagalign
+
+linters-settings:
+  funlen:
+    lines: -1 # (disabled)
+    statements: 100
+
+  cyclop:
+    max-complexity: 20
+
+  lll:
+    line-length: 140
+
+  nestif:
+    min-complexity: 18
+
+  gci:
+    sections:
+      - standard
+      - default
