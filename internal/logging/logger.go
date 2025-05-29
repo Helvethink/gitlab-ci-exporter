@@ -32,7 +32,7 @@ func NewLogger(level, format string) (logger *slog.Logger, err error) {
 		slogHandlerOptions = slog.HandlerOptions{
 			Level: slog.LevelInfo,
 		}
-		err = fmt.Errorf("Log level not recognized, falling back to info")
+		err = fmt.Errorf("log level not recognized, falling back to info")
 	}
 
 	switch strings.ToLower(format) {
@@ -42,7 +42,7 @@ func NewLogger(level, format string) (logger *slog.Logger, err error) {
 		slogHandler = slog.NewJSONHandler(os.Stdout, &slogHandlerOptions)
 	default:
 		slogHandler = slog.NewTextHandler(os.Stdout, &slogHandlerOptions)
-		err = fmt.Errorf("Log format not recognized, falling back to text")
+		err = fmt.Errorf("log format not recognized, falling back to text")
 	}
 
 	return slog.New(slogHandler), err

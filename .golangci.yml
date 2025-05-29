@@ -1,10 +1,8 @@
+version: "2"
 linters:
-  enable-all: true
+  #enable-all: true
   disable:
-    # Deprecated
-    - gomnd
-
-    # We don't want these ones
+    # We don't want these
     - forcetypeassert
     - gochecknoglobals
     - godox
@@ -29,21 +27,18 @@ linters:
     - depguard
     - tagalign
 
-linters-settings:
-  funlen:
-    lines: -1 # (disabled)
-    statements: 100
+  settings:
+    funlen:
+      lines: -1 # (disabled)
+      statements: 100
 
-  cyclop:
-    max-complexity: 20
+    cyclop:
+      max-complexity: 20
 
-  lll:
-    line-length: 140
+    lll:
+      line-length: 140
 
-  nestif:
-    min-complexity: 18
+    nestif:
+      min-complexity: 18
 
-  gci:
-    sections:
-      - standard
-      - default
+...

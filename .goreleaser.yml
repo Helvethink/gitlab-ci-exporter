@@ -4,10 +4,10 @@ before:
     - go mod tidy
 
 builds:
-  # Generator build
-  - main: generator/main.go
-    binary: generator
-    id: generator
+  # Exporter build
+  - main: main.go
+    binary: gitlab-ci-exporter
+    id: gitlab-ci-exporter
 
     env:
       - CGO_ENABLED=0

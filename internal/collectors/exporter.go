@@ -30,24 +30,23 @@ type Exporter struct {
 	Logger   *slog.Logger
 }
 
-// Describe
+// Describe Metrics function.
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
-	//TODO implement me
 	ch <- e.metrics.sampleMetric1
 	ch <- e.metrics.sampleMetric2
 }
 
 // Collect metrics configured and returns them as prometheus metrics
-// Implements prometheus.Collector
+// Implements prometheus.Collector.
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-
+	// Init collector Sample 1.
 	ch <- prometheus.MustNewConstMetric(
 		e.metrics.sampleMetric1,
 		prometheus.GaugeValue,
 		e.sampleMetric1(),
 		"labelValue",
 	)
-
+	// Init collector Sample 2.
 	ch <- prometheus.MustNewConstMetric(
 		e.metrics.sampleMetric2,
 		prometheus.GaugeValue,
@@ -64,7 +63,7 @@ func (e *Exporter) sampleMetric2() float64 {
 	return rand.Float64()
 }
 
-// Initializes the metrics
+// NewMetrics Initializes the metrics.
 func NewMetrics() *metrics {
 	return &metrics{
 		sampleMetric1: prometheus.NewDesc(
@@ -81,7 +80,7 @@ func NewMetrics() *metrics {
 	}
 }
 
-// Initialize the exporter
+// NewExporter Initialize the exporter.
 func NewExporter(settings *Settings, logger *slog.Logger) (*Exporter, error) {
 	metrics := NewMetrics()
 	exporter := &Exporter{
@@ -89,5 +88,6 @@ func NewExporter(settings *Settings, logger *slog.Logger) (*Exporter, error) {
 		Settings: settings,
 		Logger:   logger,
 	}
+
 	return exporter, nil
 }

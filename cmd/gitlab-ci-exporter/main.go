@@ -1,5 +1,5 @@
 /*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
+2025 Helvethink <technical@helvethink.ch>
 */
 package main
 
