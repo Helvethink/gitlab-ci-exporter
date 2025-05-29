@@ -18,7 +18,6 @@
 vendor
 helpers
 dist
-bin
 
 # Go workspace file
 go.work
