@@ -29,12 +29,14 @@ go.work.sum
 
 # Utils directories
 **/*.tgz
+
 # Conf files/dirs
 /gitlab-ci-exporter.yml
 gitlab-ci-pipelines-exporter
 
 !cmd/gitlab-ci-exporter
 !examples/**/gitlab-ci-exporter
+
 # IDE and OS stuff
 .idea
 **/.DS_Store
