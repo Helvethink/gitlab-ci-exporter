@@ -94,7 +94,7 @@ func checkCoreSettings() error {
 
 	// Check if the settings are correctly sets before starting app
 	if stgs.LogLevel == "" {
-		return fmt.Errorf("Missing Log Level")
+		return fmt.Errorf("missing Log Level")
 	}
 
 	return nil
