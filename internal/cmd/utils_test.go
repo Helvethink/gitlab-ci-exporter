@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli/v2"
 
-	"github.com/mvisonneau/gitlab-ci-pipelines-exporter/pkg/config"
+	"github.com/helvethink/gitlab-ci-exporter/pkg/config"
 )
 
 func NewTestContext() (ctx *cli.Context, flags *flag.FlagSet) {

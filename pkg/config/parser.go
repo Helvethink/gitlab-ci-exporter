@@ -2,45 +2,45 @@ package config
 
 import (
 	"fmt"
-	"io"
+	"os"
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
 
-// Format represents the format of the config file.
+// Format represents the configuration file format type.
 type Format uint8
 
 const (
-	// FormatYAML represents a Config written in yaml format.
+	// FormatYAML represents a config written in YAML format.
 	FormatYAML Format = iota
 )
 
-// ParseFile reads the content of a file and attempt to unmarshal it
-// into a Config.
+// ParseFile reads the content of the given file, detects the format based on the file extension,
+// and unmarshals it into a Config object.
 func ParseFile(filename string) (c Config, err error) {
 	var (
 		t         Format
 		fileBytes []byte
 	)
 
-	// Figure out what type of config file we provided
+	// Determine the config file format based on file extension.
 	t, err = GetTypeFromFileExtension(filename)
 	if err != nil {
 		return
 	}
 
-	// Read the content of the config file
-	fileBytes, err = ioutil.ReadFile(filepath.Clean(filename))
+	// Read the content of the config file safely.
+	fileBytes, err = os.ReadFile(filepath.Clean(filename))
 	if err != nil {
 		return
 	}
 
-	// Parse the content and return Config
+	// Parse and unmarshal the content into a Config object.
 	return Parse(t, fileBytes)
 }
 
-// Parse unmarshal provided bytes with given ConfigType into a Config object.
+// Parse unmarshals the provided bytes using the given Format into a Config object.
 func Parse(f Format, bytes []byte) (cfg Config, err error) {
 	switch f {
 	case FormatYAML:
@@ -49,7 +49,7 @@ func Parse(f Format, bytes []byte) (cfg Config, err error) {
 		err = fmt.Errorf("unsupported config type '%+v'", f)
 	}
 
-	// hack: automatically update the cfg.GitLab.HealthURL for self-hosted GitLab
+	// Automatically update cfg.GitLab.HealthURL for self-hosted GitLab instances.
 	if cfg.Gitlab.URL != "https://gitlab.com" &&
 		cfg.Gitlab.HealthURL == "https://gitlab.com/explore" {
 		cfg.Gitlab.HealthURL = fmt.Sprintf("%s/-/health", cfg.Gitlab.URL)
@@ -58,8 +58,7 @@ func Parse(f Format, bytes []byte) (cfg Config, err error) {
 	return
 }
 
-// GetTypeFromFileExtension returns the ConfigType based upon the extension of
-// the file.
+// GetTypeFromFileExtension returns the Format based on the file extension.
 func GetTypeFromFileExtension(filename string) (f Format, err error) {
 	switch ext := filepath.Ext(filename); ext {
 	case ".yml", ".yaml":
@@ -67,6 +66,5 @@ func GetTypeFromFileExtension(filename string) (f Format, err error) {
 	default:
 		err = fmt.Errorf("unsupported config type '%s', expected .y(a)ml", ext)
 	}
-
 	return
 }

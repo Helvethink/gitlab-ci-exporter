@@ -4,173 +4,216 @@ import (
 	"github.com/creasty/defaults"
 )
 
-// ProjectParameters for the fetching configuration of Projects and Wildcards.
+// ProjectParameters holds configuration for fetching projects and wildcards.
+// It includes settings for how project pipelines, refs, and environments are pulled and processed,
+// as well as output options for status metrics.
 type ProjectParameters struct {
-	// From handles ProjectPullParameters configuration.
+	// Pull contains detailed settings for what to pull related to projects (pipelines, refs, environments).
 	Pull ProjectPull `yaml:"pull"`
 
-	// Whether or not to export all pipeline/job statuses (being 0) or solely the one of the last job (being 1).
+	// OutputSparseStatusMetrics controls whether to export all pipeline/job statuses (false)
+	// or only the last job's status (true).
+	// Defaults to true for less verbose metrics output.
 	OutputSparseStatusMetrics bool `default:"true" yaml:"output_sparse_status_metrics"`
 }
 
-// ProjectPull ..
+// ProjectPull contains specific configuration for pulling different aspects of projects,
+// such as environments, refs (branches, tags, MRs), and pipelines.
 type ProjectPull struct {
 	Environments ProjectPullEnvironments `yaml:"environments"`
 	Refs         ProjectPullRefs         `yaml:"refs"`
 	Pipeline     ProjectPullPipeline     `yaml:"pipeline"`
 }
 
-// ProjectPullEnvironments ..
+// ProjectPullEnvironments configures if and how environments/deployments are pulled for a project.
 type ProjectPullEnvironments struct {
-	// Whether to pull environments/deployments or not for this project
+	// Enabled controls whether environment and deployment metrics are pulled.
+	// Defaults to false.
 	Enabled bool `default:"false" yaml:"enabled"`
 
-	// Regular expression to filter environments to fetch by their names
+	// Regexp is a regex filter applied to environment names to select which environments to fetch.
+	// Defaults to match all (".*").
 	Regexp string `default:".*" yaml:"regexp"`
 
-	// Prevent exporting metrics for stopped environments
+	// ExcludeStopped indicates if environments that are stopped should be excluded from metrics export.
+	// Defaults to true.
 	ExcludeStopped bool `default:"true" yaml:"exclude_stopped"`
 }
 
-// ProjectPullRefs ..
+// ProjectPullRefs contains configuration for pulling refs: branches, tags, and merge requests.
 type ProjectPullRefs struct {
-	// Configuration for pulling branches
-	Branches ProjectPullRefsBranches `yaml:"branches"`
-
-	// Configuration for pulling tags
-	Tags ProjectPullRefsTags `yaml:"tags"`
-
-	// Configuration for pulling merge requests
+	Branches      ProjectPullRefsBranches      `yaml:"branches"`
+	Tags          ProjectPullRefsTags          `yaml:"tags"`
 	MergeRequests ProjectPullRefsMergeRequests `yaml:"merge_requests"`
 }
 
-// ProjectPullRefsBranches ..
+// ProjectPullRefsBranches configures which branches to monitor pipelines for and how.
 type ProjectPullRefsBranches struct {
-	// Monitor pipelines related to project branches
+	// Enabled toggles whether branch pipelines are monitored.
+	// Defaults to true.
 	Enabled bool `default:"true" yaml:"enabled"`
 
-	// Filter for branches to include
+	// Regexp filters branches to include by name using regex.
+	// Default includes only "main" or "master" branches.
 	Regexp string `default:"^(?:main|master)$" yaml:"regexp"`
 
-	// Only keep most 'n' recently updated branches
+	// MostRecent limits exported branches to the N most recently updated.
+	// If zero, no limit is applied.
 	MostRecent uint `default:"0" yaml:"most_recent"`
 
-	// If the most recent pipeline for the branch was last updated at
-	// time greater than this value the metrics won't be exported
+	// MaxAgeSeconds prevents exporting metrics for branches whose latest pipeline
+	// update is older than this age in seconds. Zero means no age limit.
 	MaxAgeSeconds uint `default:"0" yaml:"max_age_seconds"`
 
-	// Prevent exporting metrics for deleted branches
+	// ExcludeDeleted indicates whether to skip branches marked as deleted.
+	// Defaults to true.
 	ExcludeDeleted bool `default:"true" yaml:"exclude_deleted"`
 }
 
-// ProjectPullRefsTags ..
+// ProjectPullRefsTags configures pulling of pipelines related to project tags.
 type ProjectPullRefsTags struct {
-	// Monitor pipelines related to project tags.
+	// Enabled toggles whether pipeline metrics for tags are monitored.
+	// Defaults to true.
 	Enabled bool `default:"true" yaml:"enabled"`
 
-	// Filter for tags to include.
+	// Regexp filters tags by name using a regex pattern.
+	// Defaults to match all tags (".*").
 	Regexp string `default:".*" yaml:"regexp"`
 
-	// Only keep most 'n' recently updated tags.
+	// MostRecent limits export to only the N most recently updated tags.
+	// If zero, no limit is applied.
 	MostRecent uint `default:"0" yaml:"most_recent"`
 
-	// If the most recent pipeline for the tag was last updated at
-	// time greater than this value the metrics won't be exported.
+	// MaxAgeSeconds prevents exporting metrics for tags whose most recent pipeline
+	// update is older than this number of seconds. Zero means no age limit.
 	MaxAgeSeconds uint `default:"0" yaml:"max_age_seconds"`
 
-	// Prevent exporting metrics for deleted tags.
+	// ExcludeDeleted controls whether to exclude tags marked as deleted.
+	// Defaults to true.
 	ExcludeDeleted bool `default:"true" yaml:"exclude_deleted"`
 }
 
-// ProjectPullRefsMergeRequests ..
+// ProjectPullRefsMergeRequests configures pulling of pipelines related to merge requests.
 type ProjectPullRefsMergeRequests struct {
-	// Monitor pipelines related to project merge requests.
+	// Enabled toggles whether pipeline metrics for merge requests are monitored.
+	// No default is specified, so it must be explicitly set.
 	Enabled bool `yaml:"enabled"`
 
-	// Only keep most 'n' recently updated merge requests.
+	// MostRecent limits export to only the N most recently updated merge requests.
+	// If zero, no limit is applied.
 	MostRecent uint `default:"0" yaml:"most_recent"`
 
-	// If the most recent pipeline for the merge request was last updated at
-	// time greater than this value the metrics won't be exported.
+	// MaxAgeSeconds prevents exporting metrics for merge requests whose most recent pipeline
+	// update is older than this number of seconds. Zero means no age limit.
 	MaxAgeSeconds uint `default:"0" yaml:"max_age_seconds"`
 }
 
-// ProjectPullPipeline ..
+// ProjectPullPipeline holds configuration related to pipelines.
 type ProjectPullPipeline struct {
-	Jobs        ProjectPullPipelineJobs        `yaml:"jobs"`
-	Variables   ProjectPullPipelineVariables   `yaml:"variables"`
+	// Jobs contains configuration related to pipeline jobs.
+	Jobs ProjectPullPipelineJobs `yaml:"jobs"`
+
+	// Variables controls pipeline variable fetching settings.
+	Variables ProjectPullPipelineVariables `yaml:"variables"`
+
+	// TestReports configures the collection of pipeline test reports.
 	TestReports ProjectPullPipelineTestReports `yaml:"test_reports"`
 }
 
-// ProjectPullPipelineJobs ..
+// ProjectPullPipelineJobs configures metrics related to pipeline jobs.
 type ProjectPullPipelineJobs struct {
-	// Enabled set to true will pull pipeline jobs related metrics.
+	// Enabled toggles pulling metrics related to pipeline jobs.
+	// Defaults to false.
 	Enabled bool `default:"false" yaml:"enabled"`
 
-	// Pull pipeline jobs from child/downstream pipelines.
+	// FromChildPipelines configures pulling jobs from child or downstream pipelines.
 	FromChildPipelines ProjectPullPipelineJobsFromChildPipelines `yaml:"from_child_pipelines"`
 
-	// Configure the export of the runner description which ran the job.
+	// RunnerDescription configures whether to export the description of the runner
+	// that executed the job.
 	RunnerDescription ProjectPullPipelineJobsRunnerDescription `yaml:"runner_description"`
 }
 
-// ProjectPullPipelineJobsFromChildPipelines ..
+// ProjectPullPipelineJobsFromChildPipelines configures pulling jobs from child or downstream pipelines.
 type ProjectPullPipelineJobsFromChildPipelines struct {
-	// Enabled set to true will pull pipeline jobs from child/downstream pipelines related metrics.
+	// Enabled toggles whether to pull pipeline jobs from child or downstream pipelines.
+	// Defaults to true.
 	Enabled bool `default:"true" yaml:"enabled"`
 }
 
-// ProjectPullPipelineJobsRunnerDescription ..
+// ProjectPullPipelineJobsRunnerDescription configures exporting runner descriptions.
 type ProjectPullPipelineJobsRunnerDescription struct {
-	// Enabled set to true will export the description of the runner which ran the job.
+	// Enabled toggles whether to export the description of the runner that executed the job.
+	// Defaults to true.
 	Enabled bool `default:"true" yaml:"enabled"`
 
-	// Regular expression to be able to reduce the cardinality of the exported value when necessary.
+	// AggregationRegexp is a regex to reduce cardinality by aggregating runner descriptions.
+	// For example, it can extract a numeric identifier from a hostname pattern.
+	// Defaults to "shared-runners-manager-(\d*)\.gitlab\.com"
 	AggregationRegexp string `default:"shared-runners-manager-(\\d*)\\.gitlab\\.com" yaml:"aggregation_regexp"`
 }
 
-// ProjectPullPipelineVariables ..
+// ProjectPullPipelineVariables configures fetching pipeline variables.
 type ProjectPullPipelineVariables struct {
-	// Enabled set to true will attempt to retrieve variables included in the pipeline.
+	// Enabled toggles whether to fetch variables included in the pipeline.
+	// Defaults to false.
 	Enabled bool `default:"false" yaml:"enabled"`
 
-	// Regexp to filter pipeline variables values to fetch.
+	// Regexp filters pipeline variable values by regex to control which variables are fetched.
+	// Defaults to match all (".*").
 	Regexp string `default:".*" yaml:"regexp"`
 }
 
-// ProjectPullPipelineTestReports ..
+// ProjectPullPipelineTestReports configures retrieval of test reports from pipelines.
 type ProjectPullPipelineTestReports struct {
-	// Enabled set to true will attempt to retrieve the test report included in the pipeline.
-	Enabled            bool                                             `default:"false" yaml:"enabled"`
+	// Enabled toggles whether to attempt retrieving test reports included in the pipeline.
+	// Defaults to false.
+	Enabled bool `default:"false" yaml:"enabled"`
+
+	// FromChildPipelines configures whether to pull test reports from child/downstream pipelines.
 	FromChildPipelines ProjectPullPipelineTestReportsFromChildPipelines `yaml:"from_child_pipelines"`
-	TestCases          ProjectPullPipelineTestReportsTestCases          `yaml:"test_cases"`
+
+	// TestCases configures fetching details about individual test cases within the test reports.
+	TestCases ProjectPullPipelineTestReportsTestCases `yaml:"test_cases"`
 }
 
-// ProjectPullPipelineJobsFromChildPipelines ..
+// ProjectPullPipelineTestReportsFromChildPipelines configures pulling test reports from child pipelines.
 type ProjectPullPipelineTestReportsFromChildPipelines struct {
-	// Enabled set to true will pull pipeline jobs from child/downstream pipelines related metrics.
+	// Enabled toggles whether to pull test reports from child/downstream pipelines.
+	// Defaults to false.
 	Enabled bool `default:"false" yaml:"enabled"`
 }
 
-// ProjectPullPipelineTestCases ..
+// ProjectPullPipelineTestReportsTestCases configures retrieval of test case details
+// within pipeline test reports.
 type ProjectPullPipelineTestReportsTestCases struct {
-	// Enabled set to true will attempt to retrieve the test report included in the pipeline.
+	// Enabled toggles whether to attempt retrieving individual test case information
+	// from the pipeline test report.
+	// Defaults to false.
 	Enabled bool `default:"false" yaml:"enabled"`
 }
 
-// Project holds information about a GitLab project.
+// Project holds information about a GitLab project, including its specific parameters.
 type Project struct {
-	// ProjectParameters holds parameters specific to this project.
+	// ProjectParameters embeds configuration parameters specific to this project.
 	ProjectParameters `yaml:",inline"`
 
-	// Name is actually what is commonly referred as path_with_namespace on GitLab.
+	// Name represents the project identifier, commonly known as path_with_namespace in GitLab.
 	Name string `yaml:"name"`
 }
 
-// Projects ..
+// Projects is a slice of Project instances.
 type Projects []Project
 
-// NewProject returns a new project composed with the default parameters.
+// NewProject creates a new Project instance with default parameters set,
+// and assigns the given project name.
+// The name usually corresponds to GitLab's path_with_namespace.
+//
+// Parameters:
+//   - name: the GitLab project identifier (path_with_namespace).
+//
+// Returns:
+//   - Project with default values initialized and name set.
 func NewProject(name string) (p Project) {
 	defaults.MustSet(&p)
 	p.Name = name
