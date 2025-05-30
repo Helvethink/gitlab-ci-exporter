@@ -14,6 +14,12 @@ import (
 	"github.com/spf13/viper"
 )
 
+type GitlabSettings struct {
+	GitlabToken string
+	GitlabURL   string
+	GitlabUser  string
+}
+
 // rootCmd represents the base command when called without any subcommands.
 var rootCmd = &cobra.Command{
 	Use:   "gitlab-ci-exporter",
@@ -41,9 +47,13 @@ const (
 	defaultMetricsPath = "metrics"
 	defaultListenPort  = "9101"
 	defaultAddress     = "localhost"
+	defaultGitlabToken = "need-to-add-something"
+	defaultGitlabURL   = "https://gitlab.com"
+	defaultGitlabUser  = "gitlab-ci-exporter"
 )
 
 var settings collectors.Settings
+var gitlabSettings GitlabSettings
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
@@ -66,6 +76,7 @@ func init() {
 	viper.SetDefault("METRICS_PATH", defaultMetricsPath)
 	viper.SetDefault("LISTEN_PORT", defaultListenPort)
 	viper.SetDefault("ADDRESS", defaultAddress)
+	viper.SetDefault("GITLAB_TOKEN", defaultGitlabToken)
 
 	rootCmd.Flags().StringVar(&settings.LogLevel, "log.level", defaultLogLevel, "Exporter log level")
 	_ = viper.BindPFlag("log.level", rootCmd.Flags().Lookup("LOG_LEVEL"))
@@ -82,11 +93,23 @@ func init() {
 	rootCmd.Flags().StringVar(&settings.Address, "address", defaultAddress, "The address to access the exporter used for oauth redirect uri")
 	_ = viper.BindPFlag("address", rootCmd.Flags().Lookup("ADDRESS"))
 
+	rootCmd.Flags().StringVar(&gitlabSettings.GitlabToken, "gitlab.token", defaultGitlabToken, "Gitlab access token")
+	_ = viper.BindPFlag("gitlab.token", rootCmd.Flags().Lookup("GITLAB_TOKEN"))
+
+	rootCmd.Flags().StringVar(&gitlabSettings.GitlabURL, "gitlab.url", defaultGitlabURL, "Gitlab instance URL")
+	_ = viper.BindPFlag("gitlab.url", rootCmd.Flags().Lookup("GITLAB_URL"))
+
+	rootCmd.Flags().StringVar(&gitlabSettings.GitlabUser, "gitlab.user", defaultGitlabUser, "Gitlab user name")
+	_ = viper.BindPFlag("gitlab.user", rootCmd.Flags().Lookup("GITLAB_USER"))
+
 	settings.LogLevel = viper.GetString("LOG_LEVEL")
 	settings.LogFormat = viper.GetString("LOG_FORMAT")
 	settings.MetricsPath = viper.GetString("METRICS_PATH")
 	settings.ListenPort = viper.GetString("LISTEN_PORT")
 	settings.Address = viper.GetString("ADDRESS")
+	gitlabSettings.GitlabToken = viper.GetString("GITLAB_TOKEN")
+	gitlabSettings.GitlabURL = viper.GetString("GITLAB_URL")
+	gitlabSettings.GitlabUser = viper.GetString("GITLAB_USER")
 }
 
 func checkCoreSettings() error {
