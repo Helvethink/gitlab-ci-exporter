@@ -3,8 +3,13 @@
 */
 package main
 
-import "github.com/helvethink/gitlab-ci-exporter/cmd"
+import (
+	"github.com/helvethink/gitlab-ci-exporter/internal/cli"
+	"os"
+)
+
+var version = "devel"
 
 func main() {
-	cmd.Execute()
+	cli.Run(version, os.Args)
 }

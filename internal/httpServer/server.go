@@ -30,7 +30,7 @@ func NewServer(e *collectors.Exporter) *http.Server {
 	reg := prometheus.NewRegistry()
 	reg.MustRegister(
 		e,
-		// versioncollector.NewCollector("exporter"),
+		// versionCollector.NewCollector("exporter"),
 		// promCollectors.NewBuildCollector(),
 		// promCollectors.NewGoCollector(),
 	)

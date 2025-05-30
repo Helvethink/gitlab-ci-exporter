@@ -17,7 +17,7 @@ lint: ## Run all lint related tests againts the codebase
 .PHONY: run
 run: ## Run the tests against the codebase
 	@echo "Run app:"
-	$(GO) run cmd/${APP_NAME}/main.go
+	$(GO) run cmd/$(APP_NAME)/main.go
 
 .PHONY: coverage
 coverage: ## Prints coverage report
