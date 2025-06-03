@@ -3,8 +3,8 @@ log:
   level: debug
 
 gitlab:
-  url: https://gitlab.com
-  token: <your_token>
+  url: https://gitlab.com/
+  token: token-gitlab-xxx
 
 # Pull jobs related metrics on all projects
 project_defaults:
@@ -14,12 +14,19 @@ project_defaults:
         enabled: true
 
 # Example public projects to monitor
-projects:
-  - name: gitlab-org/gitlab-runner
+#projects:
+  #- name: helvethink/
     # Pull environments related metrics prefixed with 'stable' for this project
-    pull:
-      environments:
-        enabled: true
-        name_regexp: '^stable.*'
+  #  pull:
+   #   environments:
+   #     enabled: true
+   #     name_regexp: '^stable.*'
 
-  - name: gitlab-org/charts/auto-deploy-app
+  #- name: gitlab-org/charts/auto-deploy-app
+
+
+wildcards:
+  - owner:
+      name: "helvethink"
+      kind: group
+      include_subgroups: true

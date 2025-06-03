@@ -2,16 +2,16 @@
 version: '3.8'
 services:
   gitlab-ci-pipelines-exporter:
-    #image: quay.io/mvisonneau/gitlab-ci-pipelines-exporter:v0.5.10
+    #image: quay.io/helvethink/gitlab-ci-pipelines:latest
     # You can comment out the image name and use the following statement
     # to build the image against the current version of the repository
     build: ../..
     ports:
       - "8080:8080"
     environment:
-      GCPE_GITLAB_TOKEN: ${GCPE_GITLAB_TOKEN}
+      GITLAB_TOKEN: ${GCPE_GITLAB_TOKEN}
       GCPE_CONFIG: /etc/gitlab-ci-pipelines-exporter.yml
-      GCPE_INTERNAL_MONITORING_LISTENER_ADDRESS: tcp://127.0.0.1:8082
+      INTERNAL_MONITORING_LISTENER_ADDRESS: tcp://127.0.0.1:8082
     volumes:
       - type: bind
         source: ./gitlab-ci-pipelines-exporter.yml
@@ -29,7 +29,7 @@ services:
   grafana:
     image: docker.io/grafana/grafana:9.5.2
     ports:
-      - 3000:3000
+      - "3000:3000"
     environment:
       GF_AUTH_ANONYMOUS_ENABLED: 'true'
       GF_INSTALL_PLUGINS: grafana-polystat-panel,yesoreyeram-boomtable-panel

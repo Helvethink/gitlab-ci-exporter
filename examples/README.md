@@ -10,7 +10,7 @@
 
 ```bash
 # Clone this repository
-~$ git clone https://github.com/mvisonneau/gitlab-ci-pipelines-exporter.git
+~$ git clone https://github.com/helvethink/gitlab-ci-exporter.git
 ~$ cd gitlab-ci-pipelines-exporter/examples/quickstart
 
 # Provide your personal GitLab API access token (needs read_api permissions)
@@ -109,10 +109,10 @@ I believe it would be more interesting for you to be monitoring your own project
 
 ```bash
 # Edit the configuration file for the exporter
-~$ vi ./gitlab-ci-pipelines-exporter/config.yml
+~$ vi ./gitlab-ci-exporter/config.yml
 
 # Restart the exporter container
-~$ docker-compose restart gitlab-ci-pipelines-exporter
+~$ docker-compose restart gitlab-ci-exporter
 ```
 
 ## Cleanup
