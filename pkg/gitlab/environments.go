@@ -34,7 +34,7 @@ func (c *Client) GetProjectEnvironments(ctx context.Context, p schemas.Project) 
 	// If configured to exclude stopped environments,
 	// limit the query to only environments that are currently "available"
 	if p.Pull.Environments.ExcludeStopped {
-		options.States = goGitlab.String("available")
+		options.States = goGitlab.Ptr("available")
 	}
 
 	// Compile the regular expression that will be used to filter environment names
