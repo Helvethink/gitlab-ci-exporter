@@ -2,12 +2,12 @@
 version: '3.8'
 services:
   gitlab-ci-pipelines-exporter:
-    image: quay.io/mvisonneau/gitlab-ci-pipelines-exporter:v0.5.10
+    #image: quay.io/mvisonneau/gitlab-ci-pipelines-exporter:v0.5.10
     # You can comment out the image name and use the following statement
     # to build the image against the current version of the repository
-    # build: ../..
+    build: ../..
     ports:
-      - 8080:8080
+      - "8080:8080"
     environment:
       GCPE_GITLAB_TOKEN: ${GCPE_GITLAB_TOKEN}
       GCPE_CONFIG: /etc/gitlab-ci-pipelines-exporter.yml
@@ -20,7 +20,7 @@ services:
   prometheus:
     image: docker.io/prom/prometheus:v2.44.0
     ports:
-      - 9090:9090
+      - "9090:9090"
     links:
       - gitlab-ci-pipelines-exporter
     volumes:
