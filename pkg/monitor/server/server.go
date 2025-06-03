@@ -106,7 +106,7 @@ func (s *Server) Serve() {
 	}
 
 	// Ensure the listener is closed when the server exits
-	defer l.Close()
+	defer l.Close() // nolint: errcheck
 
 	// Start serving the gRPC server
 	if err = grpcServer.Serve(l); err != nil {
@@ -243,14 +243,17 @@ func (s *Server) GetTelemetry(_ *pb.Empty, ts pb.Monitor_GetTelemetryServer) (er
 		}
 
 		// Send the telemetry data to the client
-		ts.Send(telemetry)
+		err := ts.Send(telemetry)
+		if err != nil {
+			log.WithError(err).Fatal()
+		}
 
 		// Wait for either the context to be done or the ticker to tick
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			time.Sleep(1)
+			time.Sleep(1 * time.Nanosecond)
 		}
 	}
 }

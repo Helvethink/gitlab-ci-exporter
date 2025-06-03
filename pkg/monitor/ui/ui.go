@@ -64,6 +64,7 @@ var (
 
 	activeTab = inactiveTab.Copy().Border(activeTabBorder, true)
 
+	// nolint: staticcheck
 	tabGap = inactiveTab.Copy().
 		BorderTop(false).
 		BorderLeft(false).
@@ -92,6 +93,7 @@ var (
 
 	statusText = lipgloss.NewStyle().Inherit(statusBarStyle)
 
+	// nolint: staticcheck
 	versionStyle = statusNugget.Copy().
 			Background(lipgloss.Color("#0062cc"))
 
@@ -211,7 +213,7 @@ func prettyTimeago(t time.Time) string {
 
 // newModel initializes a new model instance.
 func newModel(version string, endpoint *url.URL) (m *model) {
-	p := progress.NewModel(progress.WithScaledGradient("#80c904", "#ff9d5c"))
+	p := progress.New(progress.WithScaledGradient("#80c904", "#ff9d5c"))
 
 	m = &model{
 		version:         version,
@@ -300,6 +302,7 @@ func (m *model) View() string {
 
 	// Render status bar
 	{
+		// nolint: staticcheck
 		bar := lipgloss.JoinHorizontal(lipgloss.Top,
 			statusStyle.Render("github.com/helvethink/gitlab-ci-exporter"),
 			statusText.Copy().
@@ -344,10 +347,8 @@ func waitForTelemetryUpdate(t chan *pb.Telemetry) tea.Cmd {
 
 // Start initializes and starts the UI program.
 func Start(version string, listenerAddress *url.URL) {
-	if err := tea.NewProgram(
-		newModel(version, listenerAddress),
-		tea.WithAltScreen(),
-	).Start(); err != nil {
+	// nolint: staticcheck
+	if err := tea.NewProgram(newModel(version, listenerAddress), tea.WithAltScreen()).Start(); err != nil {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)
 	}

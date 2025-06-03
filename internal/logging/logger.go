@@ -36,7 +36,7 @@ func Configure(c Config) (err error) {
 	case "json":
 		log.SetFormatter(&log.JSONFormatter{}) // Use JSON format
 	default:
-		err = fmt.Errorf("Invalid log format '%s'", c.Format)
+		err = fmt.Errorf("invalid log format '%s'", c.Format)
 		return // Return error for unsupported formats
 	}
 

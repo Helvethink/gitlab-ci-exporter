@@ -405,7 +405,12 @@ func (c *Controller) Schedule(ctx context.Context, pull config.Pull, gc config.G
 	defer span.End()
 
 	go func() {
-		c.GetGitLabMetadata(ctx)
+		err := c.GetGitLabMetadata(ctx)
+		if err != nil {
+			log.WithContext(ctx).
+				WithError(err).
+				Error("error retrieving Gitlab Metadata from the store")
+		}
 	}()
 
 	for tt, cfg := range map[schemas.TaskType]config.SchedulerConfig{

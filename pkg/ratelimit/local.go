@@ -28,7 +28,7 @@ func (l Local) Take(ctx context.Context) time.Duration {
 	start := time.Now() // Record the start time
 
 	// Wait until the rate limiter allows the action to proceed
-	if err := l.Limiter.Wait(ctx); err != nil {
+	if err := l.Limiter.Wait(ctx); err != nil { // nolint: staticcheck
 		// Log a fatal error if there is an issue with the rate limiter
 		log.WithContext(ctx).
 			WithError(err).
