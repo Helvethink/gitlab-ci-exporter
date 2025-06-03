@@ -5,7 +5,7 @@ before:
 
 builds:
   # Exporter build
-  - main: main.go
+  - main: cmd/gitlab-ci-exporter/main.go
     binary: gitlab-ci-exporter
     id: gitlab-ci-exporter
 
@@ -31,8 +31,8 @@ builds:
 
 archives:
   - formats: [ zip ]
-    id: generator
-    builds: [ generator ]
+    id: gitlab-ci-exporter
+    builds: [ gitlab-ci-exporter ]
     name_template: >-
       {{- .ProjectName }}_
       {{- title .Os }}_
