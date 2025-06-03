@@ -39,12 +39,12 @@ var (
 	highlight = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
 
 	dataStyle = lipgloss.NewStyle().
-		MarginLeft(1).
-		MarginRight(5).
-		Padding(0, 1).
-		Bold(true).
-		Foreground(lipgloss.Color("#000000")).
-		Background(lipgloss.Color("#a9a9a9"))
+			MarginLeft(1).
+			MarginRight(5).
+			Padding(0, 1).
+			Bold(true).
+			Foreground(lipgloss.Color("#000000")).
+			Background(lipgloss.Color("#a9a9a9"))
 
 	// Tab styling
 	activeTabBorder = lipgloss.Border{
@@ -58,9 +58,9 @@ var (
 	}
 
 	inactiveTab = lipgloss.NewStyle().
-		Border(tabBorder, true).
-		BorderForeground(highlight).
-		Padding(0, 1)
+			Border(tabBorder, true).
+			BorderForeground(highlight).
+			Padding(0, 1)
 
 	activeTab = inactiveTab.Copy().Border(activeTabBorder, true) // nolint:staticcheck
 
@@ -72,30 +72,30 @@ var (
 
 	// List styling
 	entityStyle = lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder(), true, false, false, false).
-		BorderForeground(subtle)
+			Border(lipgloss.NormalBorder(), true, false, false, false).
+			BorderForeground(subtle)
 
 	// Status Bar styling
 	statusStyle = lipgloss.NewStyle().
-		Inherit(statusBarStyle).
-		Foreground(lipgloss.Color("#FFFDF5")).
-		Background(lipgloss.Color("#003d80")).
-		Padding(0, 1).
-		MarginRight(1)
+			Inherit(statusBarStyle).
+			Foreground(lipgloss.Color("#FFFDF5")).
+			Background(lipgloss.Color("#003d80")).
+			Padding(0, 1).
+			MarginRight(1)
 
 	statusNugget = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFDF5")).
-		Padding(0, 1)
+			Foreground(lipgloss.Color("#FFFDF5")).
+			Padding(0, 1)
 
 	statusBarStyle = lipgloss.NewStyle().
-		Foreground(lipgloss.AdaptiveColor{Light: "#343433", Dark: "#C1C6B2"}).
-		Background(lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#353533"})
+			Foreground(lipgloss.AdaptiveColor{Light: "#343433", Dark: "#C1C6B2"}).
+			Background(lipgloss.AdaptiveColor{Light: "#D9DCCF", Dark: "#353533"})
 
 	statusText = lipgloss.NewStyle().Inherit(statusBarStyle)
 
 	// nolint: staticcheck
 	versionStyle = statusNugget.Copy().
-		Background(lipgloss.Color("#0062cc"))
+			Background(lipgloss.Color("#0062cc"))
 
 	// Page styling
 	docStyle = lipgloss.NewStyle()
