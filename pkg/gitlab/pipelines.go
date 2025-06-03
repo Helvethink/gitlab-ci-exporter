@@ -171,7 +171,7 @@ func (c *Client) GetRefsFromPipelines(ctx context.Context, p schemas.Project, re
 			Page:    1,
 			PerPage: 100,
 		},
-		OrderBy: goGitlab.String("updated_at"),
+		OrderBy: goGitlab.Ptr("updated_at"),
 	}
 
 	// Compile the regex used to filter refs (based on config)
@@ -194,7 +194,7 @@ func (c *Client) GetRefsFromPipelines(ctx context.Context, p schemas.Project, re
 		mostRecent = p.Pull.Refs.MergeRequests.MostRecent
 
 	case schemas.RefKindBranch:
-		options.Scope = goGitlab.String("branches")
+		options.Scope = goGitlab.Ptr("branches")
 		maxAgeSeconds = p.Pull.Refs.Branches.MaxAgeSeconds
 		mostRecent = p.Pull.Refs.Branches.MostRecent
 
@@ -207,7 +207,7 @@ func (c *Client) GetRefsFromPipelines(ctx context.Context, p schemas.Project, re
 		}
 
 	case schemas.RefKindTag:
-		options.Scope = goGitlab.String("tags")
+		options.Scope = goGitlab.Ptr("tags")
 		maxAgeSeconds = p.Pull.Refs.Tags.MaxAgeSeconds
 		mostRecent = p.Pull.Refs.Tags.MostRecent
 

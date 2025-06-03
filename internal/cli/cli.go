@@ -5,9 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/urfave/cli/v2"
-
 	"github.com/helvethink/gitlab-ci-exporter/internal/cmd"
+	"github.com/urfave/cli/v2"
 )
 
 // Run handles the instanciation of the CLI application.
@@ -22,7 +21,7 @@ func Run(version string, args []string) {
 // NewApp configures the CLI application.
 func NewApp(version string, start time.Time) (app *cli.App) {
 	app = cli.NewApp()
-	app.Name = "gitlab-ci-pipelines-exporter"
+	app.Name = "gitlab-ci-exporter"
 	app.Version = version
 	app.Usage = "Export metrics about GitLab CI pipelines statuses"
 	app.EnableBashCompletion = true
@@ -47,7 +46,7 @@ func NewApp(version string, start time.Time) (app *cli.App) {
 					Aliases: []string{"c"},
 					EnvVars: []string{"GCPE_CONFIG"},
 					Usage:   "config `file`",
-					Value:   "./gitlab-ci-pipelines-exporter.yml",
+					Value:   "./gitlab-ci-exporter.yml",
 				},
 				&cli.StringFlag{
 					Name:    "redis-url",
@@ -81,7 +80,7 @@ func NewApp(version string, start time.Time) (app *cli.App) {
 					Aliases: []string{"c"},
 					EnvVars: []string{"GCPE_CONFIG"},
 					Usage:   "config `file`",
-					Value:   "./gitlab-ci-pipelines-exporter.yml",
+					Value:   "./gitlab-ci-exporter.yml",
 				},
 			},
 		},

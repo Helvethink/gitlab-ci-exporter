@@ -28,6 +28,31 @@ func (c *Controller) PullRefPipelineJobsMetrics(ctx context.Context, ref schemas
 	return nil
 }
 
+// PullRefMostRecentJobsMetrics collects and processes metrics for the most recent jobs
+// associated with a specific Git reference (e.g., a branch or tag).
+func (c *Controller) PullRefMostRecentJobsMetrics(ctx context.Context, ref schemas.Ref) error {
+	// Check if job metrics collection is enabled for this project reference.
+	if !ref.Project.Pull.Pipeline.Jobs.Enabled {
+		// If disabled, exit early without doing anything.
+		return nil
+	}
+
+	// Retrieve the most recent jobs for the given Git reference from GitLab.
+	jobs, err := c.Gitlab.ListRefMostRecentJobs(ctx, ref)
+	if err != nil {
+		// If an error occurred while fetching jobs, return the error.
+		return err
+	}
+
+	// Iterate over each job and process its metrics.
+	for _, job := range jobs {
+		c.ProcessJobMetrics(ctx, ref, job)
+	}
+
+	// Return nil to indicate success.
+	return nil
+}
+
 // ProcessJobMetrics processes metrics for a given pipeline job and updates the store accordingly.
 func (c *Controller) ProcessJobMetrics(ctx context.Context, ref schemas.Ref, job schemas.Job) {
 	// Prepare logging fields with project, job name, and job ID for contextual logging
