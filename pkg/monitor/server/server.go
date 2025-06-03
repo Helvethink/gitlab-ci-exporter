@@ -30,9 +30,9 @@ type Server struct {
 
 // NewServer creates a new Server instance.
 func NewServer(
-	gitlabClient *gitlab.Client, // GitLab client instance
-	c config.Config, // Configuration instance
-	st store.Store, // Storage instance
+	gitlabClient *gitlab.Client,                            // GitLab client instance
+	c config.Config,                                        // Configuration instance
+	st store.Store,                                         // Storage instance
 	tsm map[schemas.TaskType]*monitor.TaskSchedulingStatus, // Task scheduling monitoring map
 ) (s *Server) {
 	// Initialize and return a new Server instance
@@ -243,9 +243,9 @@ func (s *Server) GetTelemetry(_ *pb.Empty, ts pb.Monitor_GetTelemetryServer) (er
 		}
 
 		// Send the telemetry data to the client
-		err := ts.Send(telemetry)
-		if err != nil {
-			log.WithError(err).Fatal()
+		errTel := ts.Send(telemetry)
+		if errTel != nil {
+			log.WithError(errTel).Fatal()
 		}
 
 		// Wait for either the context to be done or the ticker to tick
