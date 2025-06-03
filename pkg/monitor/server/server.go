@@ -30,9 +30,9 @@ type Server struct {
 
 // NewServer creates a new Server instance.
 func NewServer(
-	gitlabClient *gitlab.Client,                            // GitLab client instance
-	c config.Config,                                        // Configuration instance
-	st store.Store,                                         // Storage instance
+	gitlabClient *gitlab.Client, // GitLab client instance
+	c config.Config, // Configuration instance
+	st store.Store, // Storage instance
 	tsm map[schemas.TaskType]*monitor.TaskSchedulingStatus, // Task scheduling monitoring map
 ) (s *Server) {
 	// Initialize and return a new Server instance

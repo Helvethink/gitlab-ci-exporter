@@ -56,7 +56,7 @@ func TestConfigure(t *testing.T) {
 	assert.Error(t, err)
 
 	// Valid configuration
-	flags.Set("gitlab-token", "secret")
+	flags.Set("gitlab-token", "secret") // nolint: errcheck
 
 	cfg, err = configure(ctx)
 	assert.NoError(t, err)

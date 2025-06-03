@@ -2,8 +2,6 @@ package controller
 
 import (
 	"context"
-	"time"
-
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/extra/redisotel/v9"
@@ -142,10 +140,6 @@ func configureTracing(ctx context.Context, grpcEndpoint string) error {
 	log.WithFields(log.Fields{
 		"opentelemetry_grpc_endpoint": grpcEndpoint,
 	}).Info("opentelemetry gRPC endpoint provided, initializing connection..")
-
-	// Create a context with timeout to block until the connection is established
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	// Create a new OpenTelemetry gRPC trace client with insecure connection, connecting to the given endpoint,
 	// and block until the connection is established
