@@ -22,6 +22,7 @@ func NewClient(ctx context.Context, endpoint *url.URL) *Client {
 	log.WithField("endpoint", endpoint.String()).Debug("establishing gRPC connection to the server..")
 
 	// Establish a gRPC connection to the server using insecure credentials
+	// nolint: staticcheck
 	conn, err := grpc.DialContext(
 		ctx,
 		endpoint.String(),

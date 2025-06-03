@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/extra/redisotel/v9"
@@ -147,7 +146,7 @@ func configureTracing(ctx context.Context, grpcEndpoint string) error {
 	traceClient := otlptracegrpc.NewClient(
 		otlptracegrpc.WithInsecure(),
 		otlptracegrpc.WithEndpoint(grpcEndpoint),
-		otlptracegrpc.WithDialOption(grpc.WithBlock()),
+		otlptracegrpc.WithDialOption(grpc.WithBlock()), // nolint: staticcheck
 	)
 
 	// Create a new trace exporter using the gRPC trace client

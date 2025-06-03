@@ -30,6 +30,9 @@ go.work.sum
 # Utils directories
 **/*.tgz
 
+# Coverage and tests dirs
+coverage
+
 # Conf files/dirs
 /gitlab-ci-exporter.yml
 gitlab-ci-pipelines-exporter
