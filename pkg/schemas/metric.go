@@ -151,7 +151,7 @@ func (m Metric) Key() MetricKey {
 		})
 
 	case MetricKindJobArtifactSizeBytes, MetricKindJobDurationSeconds, MetricKindJobID, MetricKindJobQueuedDurationSeconds, MetricKindJobRunCount, MetricKindJobStatus, MetricKindJobTimestamp:
-		// Append project, kind, ref, stage, tag_list, job_name, and failure_reason labels
+		// Append project, kind, ref, stage, tag_list, job_name, job_id, pipeline_id, status and failure_reason labels
 		key += fmt.Sprintf("%v", []string{
 			m.Labels["project"],
 			m.Labels["kind"],
@@ -159,6 +159,9 @@ func (m Metric) Key() MetricKey {
 			m.Labels["stage"],
 			m.Labels["tag_list"],
 			m.Labels["job_name"],
+			m.Labels["job_id"],
+			m.Labels["pipeline_id"],
+			m.Labels["status"],
 			m.Labels["failure_reason"],
 		})
 

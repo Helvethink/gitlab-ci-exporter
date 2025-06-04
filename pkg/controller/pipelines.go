@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
 	goGitlab "gitlab.com/gitlab-org/api/client-go"
@@ -87,6 +88,8 @@ func (c *Controller) PullRefMetrics(ctx context.Context, ref schemas.Ref) error 
 
 		// Prepare default labels for metrics based on the ref info
 		labels := ref.DefaultLabelsValues()
+		labels["pipeline_id"] = strconv.Itoa(pipeline.ID)
+		labels["status"] = pipeline.Status
 
 		// Initialize run count metric with the current value from the store (if any)
 		runCount := schemas.Metric{

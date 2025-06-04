@@ -10,7 +10,9 @@ var (
 	defaultLabels = []string{"project", "topics", "kind", "ref", "source", "variables"}
 
 	// jobLabels contains labels specific to CI job runs, describing stages, job names, runner info, etc.
-	jobLabels = []string{"stage", "job_name", "runner_description", "tag_list", "failure_reason"}
+	jobLabels = []string{"stage", "job_name", "runner_description", "tag_list", "pipeline_id", "job_id", "status", "failure_reason"}
+
+	pipelineLabels = []string{"pipeline_id", "status"}
 
 	// statusLabels contains labels related to job or environment statuses.
 	statusLabels = []string{"status"}
@@ -200,7 +202,7 @@ func NewCollectorCoverage() prometheus.Collector {
 			Name: "gitlab_ci_pipeline_coverage",
 			Help: "Coverage of the most recent pipeline",
 		},
-		defaultLabels, // use predefined default labels for context
+		append(defaultLabels, pipelineLabels...), // use predefined default labels for context
 	)
 }
 
@@ -216,7 +218,7 @@ func NewCollectorDurationSeconds() prometheus.Collector {
 			Name: "gitlab_ci_pipeline_duration_seconds",
 			Help: "Duration in seconds of the most recent pipeline",
 		},
-		defaultLabels,
+		append(defaultLabels, pipelineLabels...),
 	)
 }
 
@@ -231,7 +233,7 @@ func NewCollectorQueuedDurationSeconds() prometheus.Collector {
 			Name: "gitlab_ci_pipeline_queued_duration_seconds",
 			Help: "Duration in seconds the most recent pipeline has been queued before starting",
 		},
-		defaultLabels,
+		append(defaultLabels, pipelineLabels...),
 	)
 }
 
@@ -370,7 +372,7 @@ func NewCollectorID() prometheus.Collector {
 			Name: "gitlab_ci_pipeline_id",
 			Help: "ID of the most recent pipeline",
 		},
-		defaultLabels,
+		append(defaultLabels, pipelineLabels...),
 	)
 }
 
@@ -466,7 +468,7 @@ func NewCollectorJobStatus() prometheus.Collector {
 			Name: "gitlab_ci_pipeline_job_status",
 			Help: "Status of the most recent job",
 		},
-		append(defaultLabels, append(jobLabels, statusLabels...)...),
+		append(defaultLabels, jobLabels...),
 	)
 }
 
@@ -498,7 +500,7 @@ func NewCollectorStatus() prometheus.Collector {
 			Name: "gitlab_ci_pipeline_status",
 			Help: "Status of the most recent pipeline",
 		},
-		append(defaultLabels, "status"),
+		append(defaultLabels, pipelineLabels...),
 	)
 }
 
@@ -528,7 +530,7 @@ func NewCollectorRunCount() prometheus.Collector {
 			Name: "gitlab_ci_pipeline_run_count",
 			Help: "Number of executions of a pipeline",
 		},
-		defaultLabels,
+		append(defaultLabels, pipelineLabels...),
 	)
 }
 
