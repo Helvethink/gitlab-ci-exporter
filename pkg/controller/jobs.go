@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"regexp"
+	"strconv"
 
 	"github.com/helvethink/gitlab-ci-exporter/pkg/schemas"
 	log "github.com/sirupsen/logrus"
@@ -67,6 +68,9 @@ func (c *Controller) ProcessJobMetrics(ctx context.Context, ref schemas.Ref, job
 	labels["stage"] = job.Stage
 	labels["job_name"] = job.Name
 	labels["tag_list"] = job.TagList
+	labels["status"] = job.Status
+	labels["job_id"] = strconv.Itoa(job.ID)
+	labels["pipeline_id"] = strconv.Itoa(job.PipelineID)
 	labels["failure_reason"] = job.FailureReason
 
 	// If runner description aggregation is enabled in the config, use regexp to aggregate runner descriptions

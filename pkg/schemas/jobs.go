@@ -15,6 +15,7 @@ type Job struct {
 	DurationSeconds       float64 // Duration of the job execution in seconds
 	QueuedDurationSeconds float64 // Duration the job was queued in seconds
 	Status                string  // Status of the job
+	PipelineID            int     // PipelineID of the job
 	TagList               string  // Comma-separated list of tags associated with the job
 	ArtifactSize          float64 // Total size of artifacts produced by the job in bytes
 	FailureReason         string  // Reason for failure if the job failed
@@ -55,6 +56,7 @@ func NewJob(gj goGitlab.Job) Job {
 		DurationSeconds:       gj.Duration,
 		QueuedDurationSeconds: gj.QueuedDuration,
 		Status:                gj.Status,
+		PipelineID:            gj.Pipeline.ID,
 		TagList:               strings.Join(gj.TagList, ","), // Join the tag list into a comma-separated string
 		ArtifactSize:          artifactSize,
 		FailureReason:         gj.FailureReason,
