@@ -41,5 +41,102 @@ archives:
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end -}}
 
+dockers:
+  - image_templates:
+      - 'docker.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-amd64'
+      - 'ghcr.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-amd64'
+      - 'quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-amd64'
+    ids: [gitlab-ci-exporter]
+    goarch: amd64
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/amd64
+      - --label=org.opencontainers.image.title={{ .ProjectName }}
+      - --label=org.opencontainers.image.description={{ .ProjectName }}
+      - --label=org.opencontainers.image.url=https://github.com/helvethink/gitlab-ci-exporter
+      - --label=org.opencontainers.image.source=https://github.com/helvethink/gitlab-ci-exporter
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+
+  - image_templates:
+      - 'docker.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-arm64'
+      - 'ghcr.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-arm64'
+      - 'quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-arm64'
+    ids: [gitlab-ci-exporter]
+    goarch: arm64
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/arm64
+      - --label=org.opencontainers.image.title={{ .ProjectName }}
+      - --label=org.opencontainers.image.description={{ .ProjectName }}
+      - --label=org.opencontainers.image.url=https://github.com/helvethink/gitlab-ci-exporter
+      - --label=org.opencontainers.image.source=https://github.com/helvethink/gitlab-ci-exporter
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+
+  - image_templates:
+      - 'docker.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-armv6'
+      - 'ghcr.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-armv6'
+      - 'quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-armv6'
+    ids: [gitlab-ci-exporter]
+    goarch: arm
+    goarm: 6
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/arm/v6
+      - --label=org.opencontainers.image.title={{ .ProjectName }}
+      - --label=org.opencontainers.image.description={{ .ProjectName }}
+      - --label=org.opencontainers.image.url=https://github.com/helvethink/gitlab-ci-exporter
+      - --label=org.opencontainers.image.source=https://github.com/helvethink/gitlab-ci-exporter
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+
+  - image_templates:
+      - 'docker.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-armv7'
+      - 'ghcr.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-armv7'
+      - 'quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-armv7'
+    ids: [gitlab-ci-exporter]
+    goarch: arm
+    goarm: 7
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/arm/v7
+      - --label=org.opencontainers.image.title={{ .ProjectName }}
+      - --label=org.opencontainers.image.description={{ .ProjectName }}
+      - --label=org.opencontainers.image.url=https://github.com/helvethink/gitlab-ci-exporter
+      - --label=org.opencontainers.image.source=https://github.com/helvethink/gitlab-ci-exporter
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+
+docker_manifests:
+  - name_template: docker.io/helvethink/gitlab-ci-exporter:{{ .Tag }}
+    image_templates:
+      - docker.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-amd64
+      - docker.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-arm64
+      - docker.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-armv6
+      - docker.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-armv7
+
+  - name_template: ghcr.io/helvethink/gitlab-ci-exporter:{{ .Tag }}
+    image_templates:
+      - ghcr.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-amd64
+      - ghcr.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-arm64
+      - ghcr.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-armv6
+      - ghcr.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-armv7
+
+  - name_template: quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}
+    image_templates:
+      - quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-amd64
+      - quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-arm64
+      - quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-armv6
+      - quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-armv7
+
 checksum:
   algorithm: sha256

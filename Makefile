@@ -39,6 +39,15 @@ build: ## Build the binaries using local GOOS
 clean: ## Remove binary if it exists
 	rm -f $(NAME)
 
+.PHONY: protoc
+protoc: ## Generate golang from .proto files
+	@command -v protoc 2>&1 >/dev/null        || (echo "protoc needs to be available in PATH: https://github.com/protocolbuffers/protobuf/releases"; false)
+	@command -v protoc-gen-go 2>&1 >/dev/null || go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0
+	protoc \
+		--go_out=. --go_opt=paths=source_relative \
+		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		pkg/monitor/protobuf/monitor.proto
+
 .PHONY: all
 all: lint run build coverage ## Test, builds and ship package for all supported platforms
 
