@@ -14,7 +14,7 @@ RUN echo "CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags=
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-w -s" -o ${PROJECT_NAME} ${PROJECT_PATH}/main.go
 
-FROM alpine:3.21.2
+FROM alpine:3.22
 WORKDIR /app/
 
 
