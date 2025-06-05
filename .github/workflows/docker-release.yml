@@ -67,20 +67,20 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      - name: Generate artifact attestation
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-name: index.docker.io/helvethink/gitlab-ci-exporter
-          subject-digest: ${{ steps.push.outputs.digest }}
-          push-to-registry: true
+      #- name: Generate artifact attestation
+      #  uses: actions/attest-build-provenance@v2
+      #  with:
+      #    subject-name: index.docker.io/helvethink/gitlab-ci-exporter
+      #    subject-digest: ${{ steps.push.outputs.digest }}
+      #    push-to-registry: true
 
       # Quay / Buidah build
       - name: Build Image
         id: build-image
         uses: redhat-actions/buildah-build@v2
         with:
-          image: my-app
-          tags: latest ${{ github.sha }}
+          image: gitlab-ci-exporter
+          tags:  ${{ steps.meta.outputs.tags }} ${{ github.sha }}
           containerfiles: |
             ./Dockerfile
 
@@ -89,7 +89,7 @@ jobs:
         uses: redhat-actions/push-to-registry@v2
         with:
           image: ${{ steps.build-image.outputs.image }}
-          tags: ${{ steps.build-image.outputs.tags }}
+          tags: ${{ steps.meta.outputs.tags }}
           registry: quay.io/helvethink/
           username: ${{ secrets.QUAY_USER }}
           password: ${{ secrets.QUAY_TOKEN }}
