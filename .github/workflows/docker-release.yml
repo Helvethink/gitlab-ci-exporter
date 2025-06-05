@@ -37,19 +37,19 @@ jobs:
           username: ${{ secrets.DOCKER_USER }}
           password: ${{ secrets.DOCKER_TOKEN }}
 
-      #- name: Login - Quay.io
-      #  uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3
-      #  with:
-      #    registry: quay.io
-      #    username: ${{ github.repository_owner }}
-      #    password: ${{ secrets.QUAY_TOKEN }}
+      - name: Login - Quay.io
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3
+        with:
+          registry: quay.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.QUAY_TOKEN }}
 
-      #- name: Login - GHCR.io
-      #  uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3
-      #  with:
-      #    registry: ghcr.io
-      #    username: ${{ github.repository_owner }}
-      #    password: ${{ secrets.GH_PAT }}
+      - name: Login - GHCR.io
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GH_PAT }}
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
@@ -67,32 +67,11 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      #- name: Generate artifact attestation
-      #  uses: actions/attest-build-provenance@v2
-      #  with:
-      #    subject-name: index.docker.io/helvethink/gitlab-ci-exporter
-      #    subject-digest: ${{ steps.push.outputs.digest }}
-      #    push-to-registry: true
+      - name: Generate artifact attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: index.docker.io/helvethink/gitlab-ci-exporter
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
 
       # Quay / Buidah build
-      - name: Build Image
-        id: build-image
-        uses: redhat-actions/buildah-build@v2
-        with:
-          image: gitlab-ci-exporter
-          tags:  ${{ steps.meta.outputs.tags }} ${{ github.sha }}
-          containerfiles: |
-            ./Dockerfile
-
-      - name: Push To quay.io
-        id: push-to-quay
-        uses: redhat-actions/push-to-registry@v2
-        with:
-          image: ${{ steps.build-image.outputs.image }}
-          tags: ${{ steps.meta.outputs.tags }}
-          registry: quay.io/helvethink/
-          username: ${{ secrets.QUAY_USER }}
-          password: ${{ secrets.QUAY_TOKEN }}
-
-      - name: Print image url
-        run: echo "Image pushed to ${{ steps.push-to-quay.outputs.registry-paths }}"
