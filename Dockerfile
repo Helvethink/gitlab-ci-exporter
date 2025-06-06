@@ -4,7 +4,6 @@ ARG PROJECT_NAME=gitlab-ci-exporter
 ARG PROJECT_PATH="cmd/gitlab-ci-exporter"
 
 WORKDIR /app/
-RUN apk add --no-cache ca-certificates
 
 COPY . .
 RUN echo "CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-w -s" -o ${PROJECT_NAME} ${PROJECT_PATH}/main.go"
