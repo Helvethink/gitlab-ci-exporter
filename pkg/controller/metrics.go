@@ -212,9 +212,10 @@ func (r *Registry) GetCollector(kind schemas.MetricKind) prometheus.Collector {
 // It iterates over all metrics and dispatches their values to the appropriate registered collectors.
 func (r *Registry) ExportMetrics(metrics schemas.Metrics) {
 	for _, m := range metrics {
+		log.Tracef("P2L metric: %s", m.Kind)
+
 		// Get the collector associated with the metric kind
 		switch c := r.GetCollector(m.Kind).(type) {
-
 		// If it's a GaugeVec, set the value directly
 		case *prometheus.GaugeVec:
 			c.With(m.Labels).Set(m.Value)

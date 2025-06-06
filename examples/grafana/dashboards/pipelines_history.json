@@ -1,0 +1,497 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "datasource",
+          "uid": "grafana"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Pipelines History",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 4,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "applyToRow": false,
+                  "mode": "basic",
+                  "type": "color-background"
+                }
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "failed": {
+                        "color": "red",
+                        "index": 1
+                      },
+                      "skipped": {
+                        "color": "text",
+                        "index": 2
+                      },
+                      "success": {
+                        "color": "green",
+                        "index": 0
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 173
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last run"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "custom.width",
+                "value": 139
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "pipeline_id"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Go to pipeline #${__data.fields.pipeline_id}",
+                    "url": "https://${GITLAB_HOST}/${__data.fields.project}/pipelines/${__data.fields.pipeline_id}"
+                  }
+                ]
+              },
+              {
+                "id": "custom.width",
+                "value": 148
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "project"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": []
+              },
+              {
+                "id": "custom.width",
+                "value": 370
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ref"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 112
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 122,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "Last run"
+          }
+        ]
+      },
+      "pluginVersion": "11.6.1+security-01",
+      "targets": [
+        {
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "gitlab_ci_pipeline_status{status=~\".+\",pipeline_id=~\"$PIPELINE_ID\"} > 0",
+          "format": "table",
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "(time() - gitlab_ci_pipeline_timestamp) < $__range",
+          "format": "table",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "editorMode": "code",
+          "expr": "gitlab_ci_pipeline_duration_seconds",
+          "format": "table",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "title": "Panel Title",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Value": {
+                "aggregations": []
+              },
+              "Value #A": {
+                "aggregations": []
+              },
+              "Value #B": {
+                "aggregations": [
+                  "last"
+                ],
+                "operation": "aggregate"
+              },
+              "Value #C": {
+                "aggregations": [
+                  "last"
+                ],
+                "operation": "aggregate"
+              },
+              "Value #D": {
+                "aggregations": [
+                  "last"
+                ],
+                "operation": "aggregate"
+              },
+              "pipeline_id": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "project": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "ref": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "source": {
+                "aggregations": []
+              },
+              "status": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "pipeline_id",
+            "mode": "inner"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "project 2": true,
+              "project 3": true,
+              "ref 2": true,
+              "ref 3": true,
+              "status 2": true,
+              "status 3": true
+            },
+            "includeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "Value #B (last)": "Last run",
+              "Value #B (max)": "Last run",
+              "Value #C (last)": "Duration",
+              "Value #C (max)": "Duration",
+              "ref 3": ""
+            }
+          }
+        }
+      ],
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "",
+  "schemaVersion": 41,
+  "tags": [],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "git.devops.etat-ge.ch/gitlab",
+          "value": "git.devops.etat-ge.ch/gitlab"
+        },
+        "hide": 2,
+        "name": "GITLAB_HOST",
+        "query": "git.devops.etat-ge.ch/gitlab",
+        "skipUrlSync": true,
+        "type": "constant"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PBFA97CFB590B2093"
+        },
+        "definition": "label_values(gitlab_ci_pipeline_id,project)",
+        "includeAll": true,
+        "label": "owner",
+        "multi": true,
+        "name": "OWNER",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(gitlab_ci_pipeline_id,project)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "/(.*)\\/.*$/",
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PBFA97CFB590B2093"
+        },
+        "definition": "label_values(gitlab_ci_pipeline_id{project=~\"$OWNER\"},project)",
+        "includeAll": true,
+        "label": "project",
+        "multi": true,
+        "name": "PROJECT",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(gitlab_ci_pipeline_id{project=~\"$OWNER\"},project)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PBFA97CFB590B2093"
+        },
+        "definition": "label_values(gitlab_ci_pipeline_id{project=~\"($OWNER).*\",project=~\"$PROJECT\"}, ref)",
+        "includeAll": true,
+        "label": "ref",
+        "multi": true,
+        "name": "REF",
+        "options": [],
+        "query": {
+          "qryType": 5,
+          "query": "label_values(gitlab_ci_pipeline_id{project=~\"($OWNER).*\",project=~\"$PROJECT\"}, ref)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PBFA97CFB590B2093"
+        },
+        "definition": "label_values(gitlab_ci_pipeline_status{project=~\"($OWNER).*\",project=~\"$PROJECT\", ref=~\"$REF\"}, status)",
+        "includeAll": true,
+        "label": "Status",
+        "multi": true,
+        "name": "STATUS",
+        "options": [],
+        "query": {
+          "query": "label_values(gitlab_ci_pipeline_status{project=~\"($OWNER).*\",project=~\"$PROJECT\", ref=~\"$REF\"}, status)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PBFA97CFB590B2093"
+        },
+        "definition": "label_values(gitlab_ci_pipeline_status{project=~\"($OWNER).*\",project=~\"$PROJECT\", ref=~\"$REF\", status=~\"$STATUS\"}, pipeline_id)",
+        "includeAll": true,
+        "label": "Pipeline ID",
+        "multi": true,
+        "name": "PIPELINE_ID",
+        "options": [],
+        "query": {
+          "query": "label_values(gitlab_ci_pipeline_status{project=~\"($OWNER).*\",project=~\"$PROJECT\", ref=~\"$REF\", status=~\"$STATUS\"}, pipeline_id)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "type": "query"
+      },
+      {
+        "baseFilters": [],
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PBFA97CFB590B2093"
+        },
+        "filters": [],
+        "name": "Filters",
+        "type": "adhoc"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "10s",
+      "30s",
+      "1m",
+      "5m",
+      "15m",
+      "30m",
+      "1h",
+      "2h",
+      "1d"
+    ]
+  },
+  "timezone": "",
+  "title": "GitLab CI Pipelines History",
+  "uid": "gitlab_ci_pipelines_history",
+  "version": 1
+}

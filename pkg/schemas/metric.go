@@ -148,6 +148,8 @@ func (m Metric) Key() MetricKey {
 			m.Labels["kind"],
 			m.Labels["ref"],
 			m.Labels["source"],
+			m.Labels["pipeline_id"],
+			m.Labels["status"],
 		})
 
 	case MetricKindJobArtifactSizeBytes, MetricKindJobDurationSeconds, MetricKindJobID, MetricKindJobQueuedDurationSeconds, MetricKindJobRunCount, MetricKindJobStatus, MetricKindJobTimestamp:

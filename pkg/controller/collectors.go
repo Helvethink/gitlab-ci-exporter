@@ -515,7 +515,7 @@ func NewCollectorTimestamp() prometheus.Collector {
 			Name: "gitlab_ci_pipeline_timestamp",
 			Help: "Timestamp of the last update of the most recent pipeline",
 		},
-		defaultLabels,
+		append(defaultLabels, pipelineLabels...),
 	)
 }
 
