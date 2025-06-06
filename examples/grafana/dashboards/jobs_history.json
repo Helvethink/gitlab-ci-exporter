@@ -128,15 +128,41 @@
               {
                 "id": "custom.width",
                 "value": 102
+              },
+              {
+                "id": "unit",
+                "value": "s"
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": ""
+              "options": "Last run"
             },
-            "properties": []
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Job"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Go to #${__data.fields.job_id}",
+                    "url": "https://${GITLAB_HOST}/${__data.fields.project}/-/jobs/${__data.fields.job_id}"
+                  }
+                ]
+              }
+            ]
           }
         ]
       },
@@ -936,7 +962,7 @@
     ]
   },
   "time": {
-    "from": "now-90d",
+    "from": "now-60d",
     "to": "now"
   },
   "timepicker": {
