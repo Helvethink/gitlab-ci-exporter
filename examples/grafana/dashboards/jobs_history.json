@@ -54,6 +54,135 @@
             ]
           }
         },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "id": 122,
+      "maxDataPoints": 8000,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "pluginVersion": "9.5.2",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "P1809F7CD0C75ACF3"
+          },
+          "editorMode": "code",
+          "expr": "(time() - gitlab_ci_pipeline_job_timestamp{status=\"failed\"} < $__range_s)",
+          "format": "table",
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "P1809F7CD0C75ACF3"
+          },
+          "editorMode": "code",
+          "expr": "sum by (failure_reason, job_id) (gitlab_ci_pipeline_job_status{status=\"failed\"})",
+          "format": "table",
+          "hide": false,
+          "legendFormat": "__auto",
+          "range": true,
+          "refId": "B"
+        }
+      ],
+      "title": "Top failures",
+      "transformations": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "job_id",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Value #B": {
+                "aggregations": [
+                  "sum"
+                ],
+                "operation": "aggregate"
+              },
+              "failure_reason": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "failure_reason 1": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "failure_reason 2": true
+            },
+            "indexByName": {},
+            "renameByName": {
+              "Value #B (sum)": "Occurences",
+              "failure_reason": "Reason",
+              "failure_reason 1": "Failure"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "P1809F7CD0C75ACF3"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
         "overrides": [
           {
             "matcher": {
@@ -63,7 +192,22 @@
             "properties": [
               {
                 "id": "custom.width",
-                "value": 443
+                "value": 228
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "pattern": ".*/([^\\/]+)$",
+                      "result": {
+                        "index": 0,
+                        "text": "$1"
+                      }
+                    },
+                    "type": "regex"
+                  }
+                ]
               }
             ]
           },
@@ -157,22 +301,66 @@
                 "id": "links",
                 "value": [
                   {
+                    "targetBlank": true,
                     "title": "Go to #${__data.fields.job_id}",
-                    "url": "https://${GITLAB_HOST}/${__data.fields.project}/-/jobs/${__data.fields.job_id}"
+                    "url": "https://${GITLAB_HOST}/${__data.fields.owner}/${__data.fields.project}/-/jobs/${__data.fields.job_id}"
                   }
                 ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Pipeline"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "targetBlank": true,
+                    "title": "Go to pipeline #${__data.fields.pipeline_id}",
+                    "url": "https://${GITLAB_HOST}/${__data.fields.owner}/${__data.fields.project}/-/pipelines/${__data.fields.pipeline_id}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "owner"
+            },
+            "properties": [
+              {
+                "id": "custom.hidden",
+                "value": true
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "tag_list"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 107
               }
             ]
           }
         ]
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 15,
+        "w": 24,
         "x": 0,
-        "y": 0
+        "y": 6
       },
       "id": 121,
+      "maxDataPoints": 8000,
       "options": {
         "cellHeight": "sm",
         "footer": {
@@ -214,7 +402,7 @@
           "refId": "C"
         }
       ],
-      "title": "Panel Title",
+      "title": "Jobs history - filtered",
       "transformations": [
         {
           "id": "joinByField",
@@ -258,6 +446,14 @@
                 "aggregations": [],
                 "operation": "groupby"
               },
+              "owner": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "owner 1": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
               "pipeline_id": {
                 "aggregations": [],
                 "operation": "groupby"
@@ -293,6 +489,8 @@
               "job_name 2": true,
               "kind 1": true,
               "kind 2": true,
+              "owner 1": false,
+              "owner 2": true,
               "pipeline_id 2": true,
               "project 2": true,
               "ref 2": true,
@@ -330,410 +528,13 @@
               "job_id": "Job",
               "job_name 1": "Job Name",
               "kind 1": "Ref",
+              "owner 1": "",
               "pipeline_id 1": "Pipeline",
               "project 1": "Project",
               "ref 1": "Ref",
               "stage 1": "Stage",
               "status 1": "Status",
               "tag_list 1": ""
-            }
-          }
-        }
-      ],
-      "type": "table"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "P1809F7CD0C75ACF3"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "status"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 103
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "job_id"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 132
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "pipeline_id"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 95
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "project"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 207
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Duration"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "s"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Run"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "s"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "job_id"
-            },
-            "properties": [
-              {
-                "id": "links",
-                "value": [
-                  {
-                    "targetBlank": true,
-                    "title": "View job #${__data.fields.job_id}",
-                    "url": "https://${GITLAB_HOST}/${__data.fields.project}/-/jobs/${__data.fields.job_id}"
-                  }
-                ]
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "status"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "options": {
-                      "canceled": {
-                        "color": "text",
-                        "index": 3
-                      },
-                      "created": {
-                        "color": "blue",
-                        "index": 4
-                      },
-                      "failed": {
-                        "color": "red",
-                        "index": 1
-                      },
-                      "pending": {
-                        "color": "blue",
-                        "index": 5
-                      },
-                      "skipped": {
-                        "color": "text",
-                        "index": 2
-                      },
-                      "success": {
-                        "color": "green",
-                        "index": 0
-                      },
-                      "waiting_for_resources": {
-                        "color": "blue",
-                        "index": 6
-                      }
-                    },
-                    "type": "value"
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-background"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 34,
-        "w": 24,
-        "x": 0,
-        "y": 8
-      },
-      "id": 120,
-      "options": {
-        "cellHeight": "sm",
-        "footer": {
-          "countRows": false,
-          "fields": "",
-          "reducer": [
-            "sum"
-          ],
-          "show": false
-        },
-        "showHeader": true,
-        "sortBy": [
-          {
-            "desc": true,
-            "displayName": "job_id"
-          }
-        ]
-      },
-      "pluginVersion": "9.5.2",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "P1809F7CD0C75ACF3"
-          },
-          "editorMode": "code",
-          "expr": "gitlab_ci_pipeline_job_status{status=~\".+\",pipeline_id=~\".+\"} > 0",
-          "format": "table",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "STATUS"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "P1809F7CD0C75ACF3"
-          },
-          "editorMode": "code",
-          "expr": "(time() - gitlab_ci_pipeline_job_timestamp) < $__range_s",
-          "format": "table",
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "JOB_TIMESTAMP"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "P1809F7CD0C75ACF3"
-          },
-          "editorMode": "code",
-          "expr": "gitlab_ci_pipeline_job_duration_seconds",
-          "format": "table",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "DURATION"
-        }
-      ],
-      "title": "Jobs History",
-      "transformations": [
-        {
-          "id": "joinByField",
-          "options": {
-            "byField": "job_id",
-            "mode": "outer"
-          }
-        },
-        {
-          "id": "groupBy",
-          "options": {
-            "fields": {
-              "Run": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "aggregate"
-              },
-              "Value": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "aggregate"
-              },
-              "Value #DURATION": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "aggregate"
-              },
-              "Value #JOB_TIMESTAMP": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "aggregate"
-              },
-              "Value #STATUS": {
-                "aggregations": []
-              },
-              "failure_reason": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "aggregate"
-              },
-              "job_id": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "job_name": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "pipeline_id": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "project": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "ref": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "runner tags": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "aggregate"
-              },
-              "stage": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "status": {
-                "aggregations": [],
-                "operation": "groupby"
-              },
-              "tag_list": {
-                "aggregations": [
-                  "lastNotNull"
-                ],
-                "operation": "aggregate"
-              }
-            }
-          }
-        },
-        {
-          "id": "organize",
-          "options": {
-            "excludeByName": {
-              "failure_reason (lastNotNull) 2": true,
-              "failure_reason (lastNotNull) 3": true,
-              "job_name 2": true,
-              "job_name 3": true,
-              "pipeline_id 2": true,
-              "pipeline_id 3": true,
-              "project 2": true,
-              "project 3": true,
-              "ref 2": true,
-              "ref 3": true,
-              "stage 2": true,
-              "stage 3": true,
-              "status 2": true,
-              "status 3": true,
-              "tag_list (lastNotNull) 2": true,
-              "tag_list (lastNotNull) 3": true
-            },
-            "includeByName": {},
-            "indexByName": {
-              "Value #DURATION (lastNotNull)": 25,
-              "Value #JOB_TIMESTAMP (lastNotNull)": 22,
-              "failure_reason (lastNotNull) 1": 19,
-              "failure_reason (lastNotNull) 2": 20,
-              "failure_reason (lastNotNull) 3": 23,
-              "job_id": 0,
-              "job_name 1": 1,
-              "job_name 2": 7,
-              "job_name 3": 13,
-              "pipeline_id 1": 2,
-              "pipeline_id 2": 8,
-              "pipeline_id 3": 14,
-              "project 1": 3,
-              "project 2": 9,
-              "project 3": 15,
-              "ref 1": 4,
-              "ref 2": 10,
-              "ref 3": 16,
-              "stage 1": 5,
-              "stage 2": 11,
-              "stage 3": 17,
-              "status 1": 6,
-              "status 2": 12,
-              "status 3": 18,
-              "tag_list (lastNotNull) 1": 26,
-              "tag_list (lastNotNull) 2": 21,
-              "tag_list (lastNotNull) 3": 24
-            },
-            "renameByName": {
-              "Value #DURATION (lastNotNull)": "Duration",
-              "Value #JOB_TIMESTAMP (lastNotNull)": "Run",
-              "failure_reason (lastNotNull) 1": "Fail",
-              "failure_reason (lastNotNull) 3": "",
-              "tag_list (lastNotNull) 1": "Tags",
-              "tag_list (lastNotNull) 3": ""
             }
           }
         }
@@ -757,9 +558,13 @@
       {
         "allValue": ".*",
         "current": {
-          "selected": false,
-          "text": "All",
-          "value": "$__all"
+          "selected": true,
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
         },
         "datasource": {
           "type": "prometheus",
@@ -852,7 +657,7 @@
           "type": "prometheus",
           "uid": "P1809F7CD0C75ACF3"
         },
-        "definition": "label_values(gitlab_ci_pipeline_job_id{project=~\"($OWNER).*\",project=~\"$PROJECT\", ref=~\"$REF\", status=~\"$STATUS\", job_name=~\"$JOB_NAME\", job_id=~\"$JOB_ID\"}, pipeline_id)",
+        "definition": "label_values(gitlab_ci_pipeline_job_id{project=~\"($OWNER).*\",project=~\"$PROJECT\", ref=~\"$REF\", status=~\"$STATUS\", job_name=~\"$JOB_NAME\", job_id=~\"$JOB_ID\"},pipeline_id)",
         "hide": 0,
         "includeAll": true,
         "label": "Pipeline ID",
@@ -860,8 +665,7 @@
         "name": "PIPELINE_ID",
         "options": [],
         "query": {
-          "qryType": 5,
-          "query": "label_values(gitlab_ci_pipeline_job_id{project=~\"($OWNER).*\",project=~\"$PROJECT\", ref=~\"$REF\", status=~\"$STATUS\", job_name=~\"$JOB_NAME\", job_id=~\"$JOB_ID\"}, pipeline_id)",
+          "query": "label_values(gitlab_ci_pipeline_job_id{project=~\"($OWNER).*\",project=~\"$PROJECT\", ref=~\"$REF\", status=~\"$STATUS\", job_name=~\"$JOB_NAME\", job_id=~\"$JOB_ID\"},pipeline_id)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 2,
@@ -934,14 +738,18 @@
         "allValue": ".*",
         "current": {
           "selected": true,
-          "text": [],
-          "value": []
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
         },
         "datasource": {
           "type": "prometheus",
           "uid": "P1809F7CD0C75ACF3"
         },
-        "definition": "gitlab_ci_pipeline_job_id{project=~\"($OWNER).*\",project=~\"$PROJECT\", ref=~\"$REF\", job_name=~\"$JOB_NAME\", status=~\"$STATUS\"}, job_id)",
+        "definition": "label_values(gitlab_ci_pipeline_job_id{project=~\"($OWNER).*\",project=~\"$PROJECT\", ref=~\"$REF\", job_name=~\"$JOB_NAME\", status=~\"$STATUS\"}, job_id)",
         "hide": 0,
         "includeAll": true,
         "label": "Job ID",
@@ -949,8 +757,7 @@
         "name": "JOB_ID",
         "options": [],
         "query": {
-          "qryType": 5,
-          "query": "gitlab_ci_pipeline_job_id{project=~\"($OWNER).*\",project=~\"$PROJECT\", ref=~\"$REF\", job_name=~\"$JOB_NAME\", status=~\"$STATUS\"}, job_id)",
+          "query": "label_values(gitlab_ci_pipeline_job_id{project=~\"($OWNER).*\",project=~\"$PROJECT\", ref=~\"$REF\", job_name=~\"$JOB_NAME\", status=~\"$STATUS\"}, job_id)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 2,
@@ -962,14 +769,11 @@
     ]
   },
   "time": {
-    "from": "now-60d",
+    "from": "now-6M",
     "to": "now"
   },
   "timepicker": {
     "refresh_intervals": [
-      "10s",
-      "30s",
-      "1m",
       "5m",
       "15m",
       "30m",
@@ -981,6 +785,6 @@
   "timezone": "",
   "title": "GitLab CI Jobs History  NG",
   "uid": "gitlab_ci_jobs_history",
-  "version": 1,
+  "version": 5,
   "weekStart": ""
 }

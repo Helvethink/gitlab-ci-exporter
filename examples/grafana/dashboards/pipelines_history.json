@@ -19,13 +19,13 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 4,
   "links": [],
+  "liveNow": false,
   "panels": [
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
+        "uid": "P1809F7CD0C75ACF3"
       },
       "fieldConfig": {
         "defaults": {
@@ -44,7 +44,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -57,58 +58,63 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "status"
+              "options": "project"
             },
             "properties": [
               {
-                "id": "custom.cellOptions",
-                "value": {
-                  "applyToRow": false,
-                  "mode": "basic",
-                  "type": "color-background"
-                }
+                "id": "custom.width",
+                "value": 231
               },
               {
                 "id": "mappings",
                 "value": [
                   {
                     "options": {
-                      "failed": {
-                        "color": "red",
-                        "index": 1
-                      },
-                      "skipped": {
-                        "color": "text",
-                        "index": 2
-                      },
-                      "success": {
-                        "color": "green",
-                        "index": 0
+                      "pattern": ".*/([^\\/]+)$",
+                      "result": {
+                        "index": 0,
+                        "text": "$1"
                       }
                     },
-                    "type": "value"
+                    "type": "regex"
                   }
                 ]
-              },
-              {
-                "id": "custom.width",
-                "value": 173
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "Last run"
+              "options": "owner"
             },
             "properties": [
               {
-                "id": "unit",
-                "value": "s"
-              },
+                "id": "custom.width",
+                "value": 212
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ref"
+            },
+            "properties": [
               {
                 "id": "custom.width",
-                "value": 139
+                "value": 92
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 100
               }
             ]
           },
@@ -122,54 +128,87 @@
                 "id": "links",
                 "value": [
                   {
+                    "targetBlank": true,
                     "title": "Go to pipeline #${__data.fields.pipeline_id}",
-                    "url": "https://${GITLAB_HOST}/${__data.fields.project}/pipelines/${__data.fields.pipeline_id}"
+                    "url": "https://${GITLAB_HOST}/${__data.fields.owner}/${__data.fields.project}/-/pipelines/${__data.fields.pipeline_id}"
                   }
                 ]
               },
               {
                 "id": "custom.width",
-                "value": 148
+                "value": 138
               }
             ]
           },
           {
             "matcher": {
               "id": "byName",
-              "options": "project"
+              "options": "kind"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 140
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "status (firstNotNull)"
             },
             "properties": [
               {
                 "id": "mappings",
-                "value": []
+                "value": [
+                  {
+                    "options": {
+                      "canceled": {
+                        "color": "text",
+                        "index": 4
+                      },
+                      "created": {
+                        "color": "blue",
+                        "index": 2
+                      },
+                      "failed": {
+                        "color": "red",
+                        "index": 1
+                      },
+                      "pending": {
+                        "color": "text",
+                        "index": 5
+                      },
+                      "skipped": {
+                        "color": "text",
+                        "index": 3
+                      },
+                      "success": {
+                        "color": "green",
+                        "index": 0
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
               },
               {
-                "id": "custom.width",
-                "value": 370
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "ref"
-            },
-            "properties": [
-              {
-                "id": "custom.width",
-                "value": 112
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
               }
             ]
           }
         ]
       },
       "gridPos": {
-        "h": 8,
+        "h": 16,
         "w": 24,
         "x": 0,
         "y": 0
       },
-      "id": 122,
+      "id": 123,
       "options": {
         "cellHeight": "sm",
         "footer": {
@@ -180,90 +219,93 @@
           ],
           "show": false
         },
+        "frameIndex": 1,
         "showHeader": true,
-        "sortBy": [
-          {
-            "desc": false,
-            "displayName": "Last run"
-          }
-        ]
+        "sortBy": []
       },
-      "pluginVersion": "11.6.1+security-01",
+      "pluginVersion": "9.5.2",
       "targets": [
         {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "P1809F7CD0C75ACF3"
+          },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "gitlab_ci_pipeline_status{status=~\".+\",pipeline_id=~\"$PIPELINE_ID\"} > 0",
-          "format": "table",
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
-          "expr": "(time() - gitlab_ci_pipeline_timestamp) < $__range",
+          "expr": "(\r\n    ((time() - gitlab_ci_pipeline_timestamp) < $__range_s)\r\n      and on(job_id)\r\n  (gitlab_ci_pipeline_duration_seconds)\r\n  and on(job_id)\r\n  (gitlab_ci_pipeline_status)\r\n)",
           "format": "table",
           "hide": false,
-          "instant": false,
+          "instant": true,
           "legendFormat": "__auto",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "editorMode": "code",
-          "expr": "gitlab_ci_pipeline_duration_seconds",
-          "format": "table",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "C"
+          "range": false,
+          "refId": "Join_TS"
         }
       ],
-      "title": "Panel Title",
+      "title": "Pipeline history",
       "transformations": [
         {
           "id": "groupBy",
           "options": {
             "fields": {
-              "Value": {
+              "Time": {
                 "aggregations": []
+              },
+              "Value": {
+                "aggregations": [
+                  "lastNotNull"
+                ]
               },
               "Value #A": {
-                "aggregations": []
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "aggregate"
               },
               "Value #B": {
-                "aggregations": [
-                  "last"
-                ],
-                "operation": "aggregate"
-              },
-              "Value #C": {
-                "aggregations": [
-                  "last"
-                ],
-                "operation": "aggregate"
-              },
-              "Value #D": {
-                "aggregations": [
-                  "last"
-                ],
-                "operation": "aggregate"
-              },
-              "pipeline_id": {
                 "aggregations": [],
                 "operation": "groupby"
               },
+              "Value #Join_TS": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "Value #Last Run": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "kind": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "kind 1": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "groupby"
+              },
+              "owner": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "groupby"
+              },
+              "owner 1": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "pipeline_id": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "groupby"
+              },
               "project": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "groupby"
+              },
+              "project 1": {
                 "aggregations": [],
                 "operation": "groupby"
               },
@@ -271,42 +313,47 @@
                 "aggregations": [],
                 "operation": "groupby"
               },
-              "source": {
-                "aggregations": []
-              },
-              "status": {
+              "ref 1": {
                 "aggregations": [],
                 "operation": "groupby"
+              },
+              "status": {
+                "aggregations": [
+                  "firstNotNull"
+                ],
+                "operation": "aggregate"
+              },
+              "status 1": {
+                "aggregations": [
+                  "lastNotNull"
+                ],
+                "operation": "aggregate"
+              },
+              "status 2": {
+                "aggregations": [
+                  "lastNotNull"
+                ]
+              },
+              "status 3": {
+                "aggregations": []
               }
             }
           }
         },
         {
-          "id": "joinByField",
-          "options": {
-            "byField": "pipeline_id",
-            "mode": "inner"
-          }
-        },
-        {
           "id": "organize",
           "options": {
-            "excludeByName": {
-              "project 2": true,
-              "project 3": true,
-              "ref 2": true,
-              "ref 3": true,
-              "status 2": true,
-              "status 3": true
+            "excludeByName": {},
+            "indexByName": {
+              "kind": 3,
+              "owner": 1,
+              "pipeline_id": 0,
+              "project": 2,
+              "ref": 4,
+              "status (firstNotNull)": 5
             },
-            "includeByName": {},
-            "indexByName": {},
             "renameByName": {
-              "Value #B (last)": "Last run",
-              "Value #B (max)": "Last run",
-              "Value #C (last)": "Duration",
-              "Value #C (max)": "Duration",
-              "ref 3": ""
+              "status (firstNotNull)": "Status"
             }
           }
         }
@@ -314,20 +361,16 @@
       "type": "table"
     }
   ],
-  "preload": false,
   "refresh": "",
-  "schemaVersion": 41,
+  "schemaVersion": 38,
+  "style": "dark",
   "tags": [],
   "templating": {
     "list": [
       {
-        "current": {
-          "text": "git.devops.etat-ge.ch/gitlab",
-          "value": "git.devops.etat-ge.ch/gitlab"
-        },
         "hide": 2,
         "name": "GITLAB_HOST",
-        "query": "git.devops.etat-ge.ch/gitlab",
+        "query": "gitlab.com",
         "skipUrlSync": true,
         "type": "constant"
       },
@@ -342,6 +385,7 @@
           "uid": "PBFA97CFB590B2093"
         },
         "definition": "label_values(gitlab_ci_pipeline_id,project)",
+        "hide": 0,
         "includeAll": true,
         "label": "owner",
         "multi": true,
@@ -354,6 +398,8 @@
         },
         "refresh": 1,
         "regex": "/(.*)\\/.*$/",
+        "skipUrlSync": false,
+        "sort": 0,
         "type": "query"
       },
       {
@@ -368,6 +414,7 @@
           "uid": "PBFA97CFB590B2093"
         },
         "definition": "label_values(gitlab_ci_pipeline_id{project=~\"$OWNER\"},project)",
+        "hide": 0,
         "includeAll": true,
         "label": "project",
         "multi": true,
@@ -380,6 +427,7 @@
         },
         "refresh": 1,
         "regex": "",
+        "skipUrlSync": false,
         "sort": 1,
         "type": "query"
       },
@@ -394,6 +442,7 @@
           "uid": "PBFA97CFB590B2093"
         },
         "definition": "label_values(gitlab_ci_pipeline_id{project=~\"($OWNER).*\",project=~\"$PROJECT\"}, ref)",
+        "hide": 0,
         "includeAll": true,
         "label": "ref",
         "multi": true,
@@ -406,6 +455,7 @@
         },
         "refresh": 1,
         "regex": "",
+        "skipUrlSync": false,
         "sort": 1,
         "type": "query"
       },
@@ -421,6 +471,7 @@
           "uid": "PBFA97CFB590B2093"
         },
         "definition": "label_values(gitlab_ci_pipeline_status{project=~\"($OWNER).*\",project=~\"$PROJECT\", ref=~\"$REF\"}, status)",
+        "hide": 0,
         "includeAll": true,
         "label": "Status",
         "multi": true,
@@ -432,6 +483,8 @@
         },
         "refresh": 1,
         "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
         "type": "query"
       },
       {
@@ -448,6 +501,7 @@
           "uid": "PBFA97CFB590B2093"
         },
         "definition": "label_values(gitlab_ci_pipeline_status{project=~\"($OWNER).*\",project=~\"$PROJECT\", ref=~\"$REF\", status=~\"$STATUS\"}, pipeline_id)",
+        "hide": 0,
         "includeAll": true,
         "label": "Pipeline ID",
         "multi": true,
@@ -459,6 +513,8 @@
         },
         "refresh": 1,
         "regex": "",
+        "skipUrlSync": false,
+        "sort": 0,
         "type": "query"
       },
       {
@@ -468,13 +524,15 @@
           "uid": "PBFA97CFB590B2093"
         },
         "filters": [],
+        "hide": 0,
         "name": "Filters",
+        "skipUrlSync": false,
         "type": "adhoc"
       }
     ]
   },
   "time": {
-    "from": "now-7d",
+    "from": "now-6M",
     "to": "now"
   },
   "timepicker": {
@@ -493,5 +551,6 @@
   "timezone": "",
   "title": "GitLab CI Pipelines History",
   "uid": "gitlab_ci_pipelines_history",
-  "version": 1
+  "version": 4,
+  "weekStart": ""
 }
