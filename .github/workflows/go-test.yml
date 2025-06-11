@@ -31,5 +31,5 @@ jobs:
       - name: Coverage
         run:  make coverage
 
-      - name: Go Coverage Badge
-        uses: tj-actions/coverage-badge-go@v3
+      - name: Coveralls GitHub Action
+        uses: coverallsapp/github-action@v2.3.6
