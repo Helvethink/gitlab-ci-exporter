@@ -119,8 +119,8 @@ type ProjectPullPipeline struct {
 	// TestReports configures the collection of pipeline test reports.
 	TestReports ProjectPullPipelineTestReports `yaml:"test_reports"`
 
-	// Add multiple refs per pipelines
-	PerRef uint `yaml:"per_ref" default:"1"`
+	// PerRef Add multiple refs per pipelines
+	PerRef uint `default:"1" yaml:"PerRef"`
 }
 
 // ProjectPullPipelineJobs configures metrics related to pipeline jobs.

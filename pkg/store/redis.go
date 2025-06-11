@@ -19,7 +19,7 @@ const (
 	redisRefsKey               string = "refs"
 	redisMetricsKey            string = "metrics"
 	redisPipelinesKey          string = "pipelines"
-	redisPipelinesVariableKey  string = "pipelines_variable"
+	redisPipelineVariablesKey  string = "pipelines_variable"
 	redisTaskKey               string = "task"
 	redisTasksExecutedCountKey string = "tasksExecutedCount"
 	redisKeepaliveKey          string = "keepalive"
