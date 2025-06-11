@@ -1,7 +1,6 @@
 ---
-version: '3.8'
 services:
-  gitlab-ci-pipelines-exporter:
+  gitlab-ci-exporter:
     #image: quay.io/helvethink/gitlab-ci-pipelines:latest
     # You can comment out the image name and use the following statement
     # to build the image against the current version of the repository
@@ -18,16 +17,16 @@ services:
         target: /etc/gitlab-ci-pipelines-exporter.yml
 
   prometheus:
-    image: docker.io/prom/prometheus:v2.44.0
+    image: docker.io/prom/prometheus:v3.4.1
     ports:
       - "9090:9090"
     links:
-      - gitlab-ci-pipelines-exporter
+      - gitlab-ci-exporter
     volumes:
       - ./prometheus/config.yml:/etc/prometheus/prometheus.yml
 
   grafana:
-    image: docker.io/grafana/grafana:9.5.2
+    image: docker.io/grafana/grafana:12.0.1
     ports:
       - "3000:3000"
     environment:
