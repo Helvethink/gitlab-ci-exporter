@@ -21,6 +21,14 @@ type Pipeline struct {
 	TestReport            TestReport // Test report associated with the pipeline
 }
 
+type PipelineKey int
+
+type Pipelines map[PipelineKey]Pipeline
+
+func (pipeline Pipeline) Key() PipelineKey {
+	return PipelineKey(pipeline.ID)
+}
+
 // TestReport represents a test report structure with detailed information about test results.
 type TestReport struct {
 	TotalTime    float64     // Total time taken by all tests in seconds

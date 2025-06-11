@@ -18,6 +18,12 @@ type Local struct {
 	refs      schemas.Refs
 	refsMutex sync.RWMutex // Mutex for thread-safe access to references
 
+	pipelines      schemas.Pipelines
+	pipelinesMutex sync.RWMutex
+
+	pipelineVariables      map[schemas.PipelineKey]string
+	pipelineVariablesMutex sync.RWMutex
+
 	metrics      schemas.Metrics
 	metricsMutex sync.RWMutex // Mutex for thread-safe access to metrics
 
@@ -284,6 +290,93 @@ func (l *Local) MetricsCount(_ context.Context) (int64, error) {
 	defer l.metricsMutex.RUnlock() // Ensure the mutex is unlocked when the function exits
 
 	return int64(len(l.metrics)), nil // Return the number of metrics
+}
+
+func (l *Local) SetPipeline(_ context.Context, pipeline schemas.Pipeline) error {
+	l.pipelinesMutex.Lock()
+	defer l.pipelinesMutex.Unlock()
+
+	l.pipelines[pipeline.Key()] = pipeline
+
+	return nil
+}
+
+// GetPipeline retrieves a pipeline from the local storage if it exists.
+func (l *Local) GetPipeline(ctx context.Context, pipeline *schemas.Pipeline) error {
+	// Check if the pipeline exists in the local storage
+	exists, _ := l.PipelineExists(ctx, pipeline.Key())
+
+	// If the pipeline exists, retrieve it from the local storage
+	if exists {
+		// Lock the mutex for reading
+		l.pipelinesMutex.RLock()
+		// Copy the pipeline data from the local storage to the provided pipeline pointer
+		*pipeline = l.pipelines[pipeline.Key()]
+		// Unlock the mutex
+		l.pipelinesMutex.RUnlock()
+	}
+
+	return nil // Return nil indicating no error
+}
+
+// PipelineExists checks if a pipeline exists in the local storage.
+func (l *Local) PipelineExists(_ context.Context, key schemas.PipelineKey) (bool, error) {
+	// Lock the mutex for reading
+	l.pipelinesMutex.RLock()
+	// Ensure the mutex is unlocked when the function returns
+	defer l.pipelinesMutex.RUnlock()
+
+	// Check if the pipeline key exists in the local storage
+	_, ok := l.pipelines[key]
+
+	return ok, nil // Return true if the pipeline exists, false otherwise, and nil error
+}
+
+// SetPipelineVariables sets the variables for a pipeline in the local storage.
+func (l *Local) SetPipelineVariables(_ context.Context, pipeline schemas.Pipeline, variables string) error {
+	// Lock the mutex for writing
+	l.pipelineVariablesMutex.Lock()
+	// Ensure the mutex is unlocked when the function returns
+	defer l.pipelineVariablesMutex.Unlock()
+
+	// Store the variables in the local storage with the pipeline key
+	l.pipelineVariables[pipeline.Key()] = variables
+
+	return nil // Return nil indicating no error
+}
+
+// GetPipelineVariables retrieves the variables for a pipeline from the local storage.
+func (l *Local) GetPipelineVariables(_ context.Context, pipeline schemas.Pipeline) (string, error) {
+	// Lock the mutex for reading
+	l.pipelineVariablesMutex.RLock()
+
+	// Retrieve the variables associated with the pipeline key
+	value, ok := l.pipelineVariables[pipeline.Key()]
+
+	// Unlock the mutex
+	l.pipelineVariablesMutex.RUnlock()
+
+	// If the variables exist, return them
+	if ok {
+		return value, nil
+	}
+
+	// Return an empty string if the variables do not exist
+	return "", nil
+}
+
+// PipelineVariablesExists checks if variables for a pipeline exist in the local storage.
+func (l *Local) PipelineVariablesExists(_ context.Context, pipeline schemas.Pipeline) (bool, error) {
+	// Lock the mutex for reading
+	l.pipelineVariablesMutex.RLock()
+
+	// Check if the pipeline key exists in the local storage for variables
+	_, ok := l.pipelineVariables[pipeline.Key()]
+
+	// Unlock the mutex
+	l.pipelineVariablesMutex.RUnlock()
+
+	return ok, nil // Return true if the variables exist, false otherwise, and nil error
 }
 
 // isTaskAlreadyQueued assesses if a task is already queued or not.
