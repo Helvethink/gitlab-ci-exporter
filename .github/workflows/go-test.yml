@@ -28,6 +28,5 @@ jobs:
       - name: Test
         run: go test -v ./...
 
-      # TODO: Must be fixed (No space left device during execution)
-      # - name: Coverage
-      #  run: ./coverage.sh
+      - name: Coverage
+        run:  make coverage
