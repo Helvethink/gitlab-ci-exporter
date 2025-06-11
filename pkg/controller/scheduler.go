@@ -441,7 +441,7 @@ func (c *Controller) Schedule(ctx context.Context, pull config.Pull, gc config.G
 // of the process is alive and actively processing tasks.
 //
 // It starts a new goroutine that:
-//   - Creates a ticker firing every 5 seconds.
+//   - Creates a ticker firing every 1 seconds.
 //   - On each tick, it calls SetKeepalive on the Redis store to update the key with
 //     a 10-second expiration, effectively refreshing the liveness indicator.
 //   - If the context is canceled, the goroutine logs and exits cleanly.
@@ -453,7 +453,7 @@ func (c *Controller) ScheduleRedisSetKeepalive(ctx context.Context) {
 	defer span.End()
 
 	go func(ctx context.Context) {
-		ticker := time.NewTicker(time.Duration(5) * time.Second)
+		ticker := time.NewTicker(time.Duration(1) * time.Second)
 
 		for {
 			select {
