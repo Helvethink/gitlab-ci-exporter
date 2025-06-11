@@ -16,15 +16,8 @@ import (
 // PullRefMetrics fetches and updates metrics related to a specific GitLab ref (branch, tag, or merge request).
 // It retrieves the latest pipeline information, updates stored metrics, and optionally pulls job and test report metrics.
 func (c *Controller) PullRefMetrics(ctx context.Context, ref schemas.Ref) error {
-	// List of pipeline statuses considered "finished" for fetching test reports
-	finishedStatusesList := []string{
-		"success",
-		"failed",
-		"skipped",
-		"cancelled",
-	}
-
-	// Refresh the ref from the store to avoid stale data in case of concurrent updates
+	// At scale, the scheduled ref may be behind the actual state being stored
+	// to avoid issues, we refresh it from the store before manipulating it
 	if err := c.Store.GetRef(ctx, &ref); err != nil {
 		return err
 	}
@@ -36,7 +29,7 @@ func (c *Controller) PullRefMetrics(ctx context.Context, ref schemas.Ref) error 
 		"ref-kind":     ref.Kind,
 	}
 
-	// Adjust ref name if the ref is a merge request to use the correct Git ref syntax
+	// We need a different syntax if the ref is a merge-request
 	var refName string
 	if ref.Kind == schemas.RefKindMergeRequest {
 		refName = fmt.Sprintf("refs/merge-requests/%s/head", ref.Name)
@@ -47,7 +40,7 @@ func (c *Controller) PullRefMetrics(ctx context.Context, ref schemas.Ref) error 
 	// Fetch the most recent pipeline for the ref from GitLab API (only one pipeline needed)
 	pipelines, _, err := c.Gitlab.GetProjectPipelines(ctx, ref.Project.Name, &goGitlab.ListProjectPipelinesOptions{
 		ListOptions: goGitlab.ListOptions{
-			PerPage: 1,
+			PerPage: int(ref.Project.Pull.Pipeline.PerRef),
 			Page:    1,
 		},
 		Ref: &refName,
@@ -59,26 +52,63 @@ func (c *Controller) PullRefMetrics(ctx context.Context, ref schemas.Ref) error 
 	// If no pipelines found, log and exit early
 	if len(pipelines) == 0 {
 		log.WithFields(logFields).Debug("could not find any pipeline for the ref")
+
 		return nil
 	}
 
-	// Fetch detailed pipeline information for the latest pipeline
-	pipeline, err := c.Gitlab.GetRefPipeline(ctx, ref, pipelines[0].ID)
+	// Reverse result list to have `ref`'s `LatestPipeline` untouched (compared to
+	// default behavior) after looping over list
+	slices.Reverse(pipelines)
+
+	for _, apiPipeline := range pipelines {
+		err := c.ProcessPipelinesMetrics(ctx, ref, apiPipeline)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"pipeline": apiPipeline.ID,
+				"error":    err,
+			}).Error("processing pipeline metrics failed")
+		}
+	}
+
+	return nil
+}
+
+func (c *Controller) ProcessPipelinesMetrics(ctx context.Context, ref schemas.Ref, apiPipeline *goGitlab.PipelineInfo) error {
+	finishedStatusesList := []string{
+		"success",
+		"failed",
+		"skipped",
+		"cancelled",
+	}
+
+	pipeline, err := c.Gitlab.GetRefPipeline(ctx, ref, apiPipeline.ID)
 	if err != nil {
 		return err
 	}
 
-	// If the stored latest pipeline is different or does not exist, update metrics
-	if ref.LatestPipeline.ID == 0 || !reflect.DeepEqual(pipeline, ref.LatestPipeline) {
-		formerPipeline := ref.LatestPipeline
-		ref.LatestPipeline = pipeline
-
-		// Optionally fetch pipeline variables if enabled in project config
-		if ref.Project.Pull.Pipeline.Variables.Enabled {
-			ref.LatestPipeline.Variables, err = c.Gitlab.GetRefPipelineVariablesAsConcatenatedString(ctx, ref)
+	// fetch pipeline variables
+	if ref.Project.Pull.Pipeline.Variables.Enabled {
+		if exists, _ := c.Store.PipelineVariablesExists(ctx, pipeline); !exists {
+			variables, err := c.Gitlab.GetRefPipelineVariablesAsConcatenatedString(ctx, ref, pipeline)
+			c.Store.SetPipelineVariables(ctx, pipeline, variables)
+			pipeline.Variables = variables
 			if err != nil {
 				return err
 			}
+		} else {
+			variables, _ := c.Store.GetPipelineVariables(ctx, pipeline)
+			pipeline.Variables = variables
+		}
+	}
+
+	var cachedPipeline schemas.Pipeline
+
+	if c.Store.GetPipeline(ctx, &cachedPipeline); cachedPipeline.ID == 0 || !reflect.DeepEqual(pipeline, cachedPipeline) {
+		formerPipeline := ref.LatestPipeline
+		ref.LatestPipeline = pipeline
+
+		if err = c.Store.SetPipeline(ctx, pipeline); err != nil {
+			return err
 		}
 
 		// Update the ref in the store with the new pipeline data
@@ -91,11 +121,14 @@ func (c *Controller) PullRefMetrics(ctx context.Context, ref schemas.Ref) error 
 		labels["pipeline_id"] = strconv.Itoa(pipeline.ID)
 		labels["status"] = pipeline.Status
 
-		// Initialize run count metric with the current value from the store (if any)
+		// If the metric does not exist yet, start with 0 instead of 1
+		// this could cause some false positives in prometheus
+		// when restarting the exporter otherwise
 		runCount := schemas.Metric{
 			Kind:   schemas.MetricKindRunCount,
 			Labels: labels,
 		}
+
 		storeGetMetric(ctx, c.Store, &runCount)
 
 		// Increment run count only if this is a new pipeline different from the previous one
@@ -159,8 +192,7 @@ func (c *Controller) PullRefMetrics(ctx context.Context, ref schemas.Ref) error 
 		}
 	}
 
-	// If test report metrics are enabled and pipeline status is finished,
-	// fetch and process test reports and test cases metrics
+	// fetch pipeline test report
 	if ref.Project.Pull.Pipeline.TestReports.Enabled && slices.Contains(finishedStatusesList, ref.LatestPipeline.Status) {
 		ref.LatestPipeline.TestReport, err = c.Gitlab.GetRefPipelineTestReport(ctx, ref)
 		if err != nil {
@@ -171,7 +203,7 @@ func (c *Controller) PullRefMetrics(ctx context.Context, ref schemas.Ref) error 
 
 		for _, ts := range ref.LatestPipeline.TestReport.TestSuites {
 			c.ProcessTestSuiteMetrics(ctx, ref, ts)
-			// If test cases metrics are enabled, process each test case within the suite
+			// fetch pipeline test cases
 			if ref.Project.Pull.Pipeline.TestReports.TestCases.Enabled {
 				for _, tc := range ts.TestCases {
 					c.ProcessTestCaseMetrics(ctx, ref, ts, tc)
@@ -183,9 +215,7 @@ func (c *Controller) PullRefMetrics(ctx context.Context, ref schemas.Ref) error 
 	return nil
 }
 
-// ProcessTestReportMetrics processes and stores metrics extracted from a test report
-// related to a specific GitLab ref (branch, tag, or merge request).
-// It updates the metrics store with various counts and timing information from the test report.
+// ProcessTestReportMetrics ..
 func (c *Controller) ProcessTestReportMetrics(ctx context.Context, ref schemas.Ref, tr schemas.TestReport) {
 	// Prepare consistent log fields identifying the project and ref for logging
 	testReportLogFields := log.Fields{
@@ -196,13 +226,14 @@ func (c *Controller) ProcessTestReportMetrics(ctx context.Context, ref schemas.R
 	// Retrieve default labels from the ref for metrics (e.g., project name, ref name, kind, etc.)
 	labels := ref.DefaultLabelsValues()
 
-	// Refresh the ref's current state from the store to ensure up-to-date data
+	// Refresh ref state from the store
 	if err := c.Store.GetRef(ctx, &ref); err != nil {
 		// Log error if unable to retrieve ref from store and exit early
 		log.WithContext(ctx).
 			WithFields(testReportLogFields).
 			WithError(err).
 			Error("getting ref from the store")
+
 		return
 	}
 
@@ -253,10 +284,7 @@ func (c *Controller) ProcessTestReportMetrics(ctx context.Context, ref schemas.R
 	})
 }
 
-// ProcessTestSuiteMetrics processes and stores metrics for a single test suite
-// within a GitLab ref (branch, tag, or merge request).
-// It updates the metrics store with counts of errors, failures, skipped tests,
-// successes, total tests, and total execution time for the test suite.
+// ProcessTestSuiteMetrics ..
 func (c *Controller) ProcessTestSuiteMetrics(ctx context.Context, ref schemas.Ref, ts schemas.TestSuite) {
 	// Prepare log fields with project, ref, and test suite name for consistent logging
 	testSuiteLogFields := log.Fields{
@@ -269,13 +297,14 @@ func (c *Controller) ProcessTestSuiteMetrics(ctx context.Context, ref schemas.Re
 	labels := ref.DefaultLabelsValues()
 	labels["test_suite_name"] = ts.Name
 
-	// Refresh the current ref state from the store to ensure the latest data
+	// Refresh ref state from the store
 	if err := c.Store.GetRef(ctx, &ref); err != nil {
 		// Log an error if the ref cannot be retrieved and stop processing this suite
 		log.WithContext(ctx).
 			WithFields(testSuiteLogFields).
 			WithError(err).
 			Error("getting ref from the store")
+
 		return
 	}
 
@@ -283,7 +312,6 @@ func (c *Controller) ProcessTestSuiteMetrics(ctx context.Context, ref schemas.Re
 	log.WithFields(testSuiteLogFields).Trace("processing test suite metrics")
 
 	// Store metrics for the test suite:
-
 	// Number of test errors
 	storeSetMetric(ctx, c.Store, schemas.Metric{
 		Kind:   schemas.MetricKindTestSuiteErrorCount,
@@ -346,7 +374,7 @@ func (c *Controller) ProcessTestCaseMetrics(ctx context.Context, ref schemas.Ref
 	labels["test_case_name"] = tc.Name           // Label for the test case name
 	labels["test_case_classname"] = tc.Classname // Label for the test case class (optional grouping)
 
-	// Refresh the current ref state from the store to ensure we work with the latest data
+	// Get the existing ref from the store
 	if err := c.Store.GetRef(ctx, &ref); err != nil {
 		// Log an error if unable to fetch the ref and abort metric processing for this test case
 		log.WithContext(ctx).
