@@ -41,4 +41,11 @@ linters:
     nestif:
       min-complexity: 18
 
+  exclusions:
+    rules:
+      - path: '(.+)_test\.go'
+        linters:
+          - funlen
+          - goconst
+          - errcheck
 ...

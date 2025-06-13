@@ -6,6 +6,7 @@ toolchain go1.23.3
 
 require (
 	dario.cat/mergo v1.0.2
+	github.com/alicebob/miniredis/v2 v2.35.0
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.4
 	github.com/charmbracelet/lipgloss v1.1.0
@@ -94,6 +95,7 @@ require (
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel/log v0.9.0 // indirect
 	go.opentelemetry.io/otel/metric v1.36.0 // indirect

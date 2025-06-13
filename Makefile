@@ -21,7 +21,8 @@ run: ## Run the tests against the codebase
 
 .PHONY: coverage
 coverage: ## Prints coverage report
-	command
+	@echo "Running coverage:"
+	./coverage.sh
 
 .PHONY: coverage-html
 coverage-html: ## Generates coverage report and displays it in the browser

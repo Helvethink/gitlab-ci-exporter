@@ -28,6 +28,8 @@ jobs:
       - name: Test
         run: go test -v ./...
 
-      # TODO: Must be fixed (No space left device during execution)
-      # - name: Coverage
-      #  run: ./coverage.sh
+      - name: Coverage
+        run:  make coverage
+
+      - name: Coveralls GitHub Action
+        uses: coverallsapp/github-action@v2.3.6
