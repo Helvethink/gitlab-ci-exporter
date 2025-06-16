@@ -1,7 +1,6 @@
 FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
 
 ARG PROJECT_NAME=gitlab-ci-exporter
-ARG PROJECT_PATH="./cmd/gitlab-ci-exporter"
 ARG TARGETOS
 ARG TARGETARCH
 ARG VERSION
@@ -10,7 +9,7 @@ ENV CGO_ENABLED=0
 WORKDIR /src
 
 COPY . .
-RUN go build -o ${PROJECT_NAME} -ldflags="-s -w -X main.version=${VERSION}" ${PROJECT_PATH}/main.go
+RUN go build -o /out/${PROJECT_NAME} -ldflags="-s -w -X main.version=${VERSION}" ./cmd/${PROJECT_NAME}/main.go
 
 FROM alpine:3.22
 
