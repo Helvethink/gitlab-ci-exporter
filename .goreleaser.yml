@@ -140,8 +140,11 @@ docker_manifests:
 
 sboms:
   - id: cyclonedx
-    paths: [gitlab-ci-exporter]
-    formats: [cyclonedx-json]
+    documents:
+      - "${artifact}.spdx.json"
+    cmd: syft
+    args: ["$artifact", "--output", "cyclonedx-json=$document"]
+    artifacts: binary
 
 checksum:
   algorithm: sha256
