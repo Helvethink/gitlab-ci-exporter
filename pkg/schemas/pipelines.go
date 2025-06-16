@@ -3,6 +3,7 @@ package schemas
 import (
 	"context"
 	"strconv" // For string conversion operations
+	"strings"
 
 	log "github.com/sirupsen/logrus"               // Logging library
 	goGitlab "gitlab.com/gitlab-org/api/client-go" // GitLab API client
@@ -96,6 +97,7 @@ func NewPipeline(ctx context.Context, gp goGitlab.Pipeline) Pipeline {
 	// Set the pipeline status based on detailed status or default status
 	if gp.DetailedStatus != nil {
 		pipeline.Status = gp.DetailedStatus.Group
+		pipeline.Status = strings.ReplaceAll(gp.DetailedStatus.Group, "-", "_")
 	} else {
 		pipeline.Status = gp.Status
 	}
