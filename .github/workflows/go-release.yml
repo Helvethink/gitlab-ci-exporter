@@ -5,15 +5,12 @@ on:
     tags:
       - "*"
 
-permissions:
-  contents: write         # Needed to create release
-  packages: write         # Needed to publish on GHCR
-  id-token: write         # Need by Cosign for Cosign keyless signing
-
 jobs:
   goreleaser:
     permissions:
-      contents: write
+      contents: write         # Needed to create release
+      packages: write         # Needed to publish on GHCR
+      id-token: write         # Need by Cosign for Cosign keyless signing
     runs-on: ubuntu-latest
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -33,6 +30,9 @@ jobs:
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
+
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@v0.16.0
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552 # v6.3.0
