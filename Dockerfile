@@ -11,14 +11,14 @@ WORKDIR /src
 COPY . .
 # RUN go build -o /out/${PROJECT_NAME} -ldflags="-s -w -X main.version=${VERSION}" ./cmd/${PROJECT_NAME}/main.go
 
-FROM alpine:3.22
+FROM scratch
 
 RUN apk add --no-cache ca-certificates
 
 # COPY --from=builder /out/${PROJECT_NAME} /usr/local/bin/${PROJECT_NAME}
-COPY gitlab-ci-exporter /usr/local/bin/
+COPY gitlab-ci-exporter /gitlab-ci-exporter
 USER 33092
 EXPOSE 8080
 
-ENTRYPOINT ["/usr/local/bin/gitlab-ci-exporter"]
+ENTRYPOINT ["/gitlab-ci-exporter"]
 CMD ["run"]
