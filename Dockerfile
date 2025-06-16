@@ -9,14 +9,14 @@ ENV CGO_ENABLED=0
 WORKDIR /src
 
 COPY . .
-RUN go build -o /out/${PROJECT_NAME} -ldflags="-s -w -X main.version=${VERSION}" ./cmd/${PROJECT_NAME}/main.go
+# RUN go build -o /out/${PROJECT_NAME} -ldflags="-s -w -X main.version=${VERSION}" ./cmd/${PROJECT_NAME}/main.go
 
 FROM alpine:3.22
 
 RUN apk add --no-cache ca-certificates
 
-COPY --from=builder /out/${PROJECT_NAME} /usr/local/bin/${PROJECT_NAME}
-
+# COPY --from=builder /out/${PROJECT_NAME} /usr/local/bin/${PROJECT_NAME}
+COPY gitlab-ci-exporter /usr/local/bin/
 USER 33092
 EXPOSE 8080
 
