@@ -15,7 +15,7 @@ FROM alpine:3.22
 
 RUN apk add --no-cache ca-certificates
 
-COPY --from=builder /src/${PROJECT_NAME} /usr/local/bin/${PROJECT_NAME}
+COPY --from=builder /out/${PROJECT_NAME} /usr/local/bin/${PROJECT_NAME}
 
 USER 33092
 EXPOSE 8080
