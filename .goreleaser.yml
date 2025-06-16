@@ -138,5 +138,10 @@ docker_manifests:
       - quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-armv6
       - quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-armv7
 
+sboms:
+  - id: cyclonedx
+    paths: [gitlab-ci-exporter]
+    formats: [cyclonedx-json]
+
 checksum:
   algorithm: sha256
