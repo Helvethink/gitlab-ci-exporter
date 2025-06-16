@@ -1,5 +1,5 @@
 ---
-name: docker-release.yml
+name: Start Release
 
 on:
   push:
