@@ -21,6 +21,9 @@ builds:
       - "386"
       - "arm"
       - "arm64"
+    goarm: [ "6", "7" ]
+    flags:
+      - -trimpath
     ignore:
       - goos: "darwin"
         goarch: "386"
@@ -31,21 +34,39 @@ builds:
 
 archives:
   - formats: [ zip ]
-    id: gitlab-ci-exporter
-    builds: [ gitlab-ci-exporter ]
     name_template: >-
-      {{- .ProjectName }}_
-      {{- title .Os }}_
+      {{- .ProjectName }}_{{- title .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end -}}
 
+nfpms:
+  - maintainer: &author Helvethink <technical@helvethink.ch>
+    description: &description GitLab CI exporter (prometheus/open-metrics)
+    license: &license Apache-2.0
+    homepage: &homepage https://github.com/helvethink/gitlab-ci-exporter
+    vendor: *author
+    file_name_template: '{{ .ProjectName }}_{{ .Tag }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+    bindir: /usr/local/bin
+    formats:
+      - apk
+      - deb
+      - rpm
+    contents:
+      - src: ./LICENSE
+        dst: /usr/share/doc/{{ .ProjectName }}/copyright
+        file_info:
+          mode: 0644
+
 dockers:
   - image_templates:
-      - 'docker.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-amd64'
-      - 'ghcr.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-amd64'
-      - 'quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-amd64'
+      - 'docker.io/helvethink/gitlab-ci-exporter:{{ .Tag }}'
+      - 'ghcr.io/helvethink/gitlab-ci-exporter:{{ .Tag }}'
+      - 'quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}'
+      - 'docker.io/helvethink/gitlab-ci-exporter:latest'
+      - 'ghcr.io/helvethink/gitlab-ci-exporter:latest'
+      - 'quay.io/helvethink/gitlab-ci-exporter:latest'
     ids: [gitlab-ci-exporter]
     goarch: amd64
     use: buildx

@@ -7,13 +7,11 @@ ARG VERSION
 ENV CGO_ENABLED=0
 
 WORKDIR /src
-
+RUN apk add --no-cache ca-certificates
 COPY . .
 # RUN go build -o /out/${PROJECT_NAME} -ldflags="-s -w -X main.version=${VERSION}" ./cmd/${PROJECT_NAME}/main.go
 
 FROM scratch
-
-RUN apk add --no-cache ca-certificates
 
 # COPY --from=builder /out/${PROJECT_NAME} /usr/local/bin/${PROJECT_NAME}
 COPY gitlab-ci-exporter /gitlab-ci-exporter
