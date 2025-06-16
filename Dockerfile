@@ -6,7 +6,7 @@ ARG PROJECT_PATH="cmd/gitlab-ci-exporter"
 WORKDIR /app/
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-w -s" -o ${PROJECT_NAME} ${PROJECT_PATH}/main.go
+RUN go build -o ${PROJECT_NAME} ${PROJECT_PATH}/main.go
 
 FROM alpine:3.22
 
