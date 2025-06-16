@@ -169,7 +169,7 @@ sboms:
       - "${artifact}.spdx.json"
     cmd: syft
     args: ["$artifact", "--output", "cyclonedx-json=$document"]
-    artifacts: binary
+    artifacts: archive
 
 checksum:
   algorithm: sha256
