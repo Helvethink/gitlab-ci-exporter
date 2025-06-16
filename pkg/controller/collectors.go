@@ -37,7 +37,7 @@ var (
 	// for example, job or environment deployment statuses.
 	statusesList = [...]string{
 		"created", "waiting_for_resource", "preparing", "pending", "running",
-		"success", "failed", "canceled", "skipped", "manual", "scheduled", "error",
+		"success", "failed", "canceled", "skipped", "manual", "scheduled", "error", "success_with_warnings",
 	}
 )
 
