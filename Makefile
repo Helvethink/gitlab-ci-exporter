@@ -36,6 +36,15 @@ install: ## Build and install locally the binary (dev purpose)
 build: ## Build the binaries using local GOOS
 	go build -o ./bin/$(NAME) ./cmd/$(NAME)
 
+.PHONY: build-docker
+build-docker: ## Build a local image
+	docker build -t $(REPOSITORY)/$(NAME)
+
+.PHONY: docker-compose
+docker-compose: ## Run docker compose
+	cd examples/
+	docker compose up --build
+
 .PHONY: clean
 clean: ## Remove binary if it exists
 	rm -f $(NAME)
