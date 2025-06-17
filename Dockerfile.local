@@ -10,10 +10,13 @@ WORKDIR /src
 
 RUN apk add --no-cache ca-certificates
 
+COPY . .
+RUN go build -o /out/${PROJECT_NAME} -ldflags="-s -w -X main.version=${VERSION}" ./cmd/${PROJECT_NAME}/main.go
+
 FROM scratch
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY gitlab-ci-exporter /gitlab-ci-exporter
+COPY --from=builder /out/${PROJECT_NAME} /usr/local/bin/${PROJECT_NAME}
 
 USER 33092
 EXPOSE 8080
