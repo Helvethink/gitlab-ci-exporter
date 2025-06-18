@@ -13,8 +13,8 @@ import (
 	"github.com/urfave/cli/v2"
 	"github.com/vmihailenco/taskq/v4"
 
+	"github.com/helvethink/gitlab-ci-exporter/internal/logging"
 	"github.com/helvethink/gitlab-ci-exporter/pkg/config"
-	"github.com/mvisonneau/go-helpers/logger"
 )
 
 var start time.Time

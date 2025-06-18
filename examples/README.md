@@ -39,7 +39,7 @@ You should now have a stack completely configured and accessible at these locati
 CONTAINER ID        IMAGE                                            COMMAND                  CREATED             STATUS              PORTS                    NAMES
 c9aedfdefe41        grafana/grafana:latest                          "/run.sh"                6 seconds ago       Up 4 seconds        0.0.0.0:3000->3000/tcp   quickstart_grafana_1
 b3500bff6038        prom/prometheus:latest                          "/bin/prometheus --c…"   7 seconds ago       Up 5 seconds        0.0.0.0:9090->9090/tcp   quickstart_prometheus_1
-930b76005b13        mvisonneau/gitlab-ci-pipelines-exporter:latest  "/usr/local/bin/gitl…"   8 seconds ago       Up 6 seconds        0.0.0.0:8080->8080/tcp   quickstart_gitlab-ci-pipelines-exporter_1
+930b76005b13        helvethink/gitlab-ci-exporter:latest  "/usr/local/bin/gitl…"   8 seconds ago       Up 6 seconds        0.0.0.0:8080->8080/tcp   quickstart_gitlab-ci-pipelines-exporter_1
 ```
 
 ### Check logs from the gitlab-ci-pipelines-exporter container
