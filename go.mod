@@ -16,11 +16,10 @@ require (
 	github.com/go-redis/redis_rate/v10 v10.0.1
 	github.com/google/uuid v1.6.0
 	github.com/heptiolabs/healthcheck v0.0.0-20211123025425-613501dd5deb
-	github.com/mvisonneau/go-helpers v0.0.1
 	github.com/paulbellamy/ratecounter v0.2.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.22.0
-	github.com/redis/go-redis/extra/redisotel/v9 v9.7.0
+	github.com/redis/go-redis/extra/redisotel/v9 v9.10.0
 	github.com/redis/go-redis/v9 v9.10.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.10.0
@@ -88,7 +87,7 @@ require (
 	github.com/prometheus/client_model v0.6.2 // indirect
 	github.com/prometheus/common v0.64.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
-	github.com/redis/go-redis/extra/rediscmd/v9 v9.7.0 // indirect
+	github.com/redis/go-redis/extra/rediscmd/v9 v9.10.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/uptrace/opentelemetry-go-extra/otelutil v0.3.2 // indirect
