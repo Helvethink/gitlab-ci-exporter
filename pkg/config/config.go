@@ -129,6 +129,13 @@ type Pull struct {
 		IntervalSeconds int  `default:"1800" validate:"gte=1" yaml:"interval_seconds"` // IntervalSeconds defines the interval in seconds between scheduled fetches.
 	} `yaml:"environments_from_projects"`
 
+	// RunnersFromProjects TODO
+	RunnersFromProjects struct {
+		OnInit          bool `default:"true" yaml:"on_init"`
+		Scheduled       bool `default:"true" yaml:"scheduled"`
+		IntervalSeconds int  `default:"1800" validate:"gte=1" yaml:"interval_seconds"`
+	} `yaml:"runners_from_projects"`
+
 	// RefsFromProjects configures the fetching of refs (branches, tags, MRs) for projects.
 	RefsFromProjects struct {
 		OnInit          bool `default:"true" yaml:"on_init"`                          // OnInit determines whether refs should be fetched once at startup.
@@ -159,6 +166,13 @@ type GarbageCollect struct {
 		Scheduled       bool `default:"true" yaml:"scheduled"`
 		IntervalSeconds int  `default:"14400" validate:"gte=1" yaml:"interval_seconds"` // 4 hours
 	} `yaml:"environments"`
+
+	// Runners TODO
+	Runners struct {
+		OnInit          bool `default:"false" yaml:"on_init"`
+		Scheduled       bool `default:"true" yaml:"scheduled"`
+		IntervalSeconds int  `default:"14400" validate:"gte=1" yaml:"interval_seconds"`
+	} `yaml:"runners"`
 
 	// Refs configures cleanup behavior related to Git references (branches, tags, etc).
 	Refs struct {

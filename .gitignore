@@ -38,7 +38,9 @@ coverage
 gitlab-ci-pipelines-exporter
 
 !cmd/gitlab-ci-exporter
-!examples/**/gitlab-ci-exporter
+
+#!examples/**/gitlab-ci-exporter
+examples/*
 
 # IDE and OS stuff
 .idea

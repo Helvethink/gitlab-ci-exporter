@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"regexp"
 
@@ -279,6 +280,115 @@ func (c *Controller) GarbageCollectRefs(ctx context.Context) error {
 	return nil
 }
 
+// GarbageCollectRunners cleans up stored runners that are no longer valid or configured.
+func (c *Controller) GarbageCollectRunners(ctx context.Context) error {
+	// Log the start and end of the garbage collection process
+	log.Info("starting 'runners' garbage collection")
+	defer log.Info("ending 'runners' garbage collection")
+
+	// Retrieve all Runners currently stored
+	storedRunners, err := c.Store.Runners(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Map to keep track of projects which have runners that need refreshing
+	runnerProjects := make(map[schemas.Project]bool)
+
+	// Iterate over each stored runner
+	for _, runner := range storedRunners {
+		// Create a Project object from the runners's project name
+		p := schemas.NewProject(runner.ProjectName)
+
+		// Check if the associated project still exists in the store
+		projectExists, err := c.Store.ProjectExists(ctx, p.Key())
+		if err != nil {
+			return err
+		}
+
+		// If the project no longer exists, delete the runner and continue to next
+		if !projectExists {
+			if err = deleteRunner(ctx, c.Store, runner, "non-existent-project"); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// Retrieve the latest project data from the store
+		if err = c.Store.GetProject(ctx, &p); err != nil {
+			return err
+		}
+
+		// If runner pulling is disabled for this project, delete the runner
+		if !p.Pull.Runners.Enabled {
+			if err = deleteRunner(ctx, c.Store, runner, "project-pull-runners-disabled"); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// Mark this project to refresh its runners from the GitLab API later
+		runnerProjects[p] = true
+
+		// Use the project's configured regex to check if this runner should be kept
+		re := regexp.MustCompile(p.Pull.Runners.Regexp)
+		if !re.MatchString(runner.Id) {
+			if err = deleteEnv(ctx, c.Store, runner, "runner-not-in-regexp"); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// If the environment's OutputSparseStatusMetrics setting differs from the project's,
+		// update the environment and save it back to the store
+		if runner.OutputSparseStatusMetrics != p.OutputSparseStatusMetrics {
+			runner.OutputSparseStatusMetrics = p.OutputSparseStatusMetrics
+
+			if err = c.Store.SetRunner(ctx, runner); err != nil {
+				return err
+			}
+
+			log.WithFields(log.Fields{
+				"project-name": runner.ProjectName,
+				"runner-name":  runner.Name,
+			}).Info("updated runner configuration to match associated project")
+		}
+	}
+
+	// Prepare a map to hold runners refreshed from the GitLab API
+	existingRunners := make(schemas.Runners)
+
+	// For each project with tracked environments, fetch environments from GitLab API
+	for p := range runnerProjects {
+		projectRunners, err := c.Gitlab.GetProjectRunners(ctx, p)
+		if err != nil {
+			return err
+		}
+
+		// Merge fetched runners into the existingRunners map
+		if err = mergo.Merge(&existingRunners, projectRunners); err != nil {
+			return err
+		}
+	}
+
+	// Reload the stored runners after possible updates
+	storedRunners, err = c.Store.Runners(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Delete runners from the store that do not exist anymore in the API data
+	for k, runner := range storedRunners {
+		if _, exists := existingRunners[k]; !exists {
+			if err = deleteRunner(ctx, c.Store, runner, "non-existent-runner"); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 // GarbageCollectMetrics performs cleanup of obsolete or invalid metrics in the store.
 // It ensures metrics linked to non-existent projects, refs, or environments are removed,
 // and also respects project-level settings that may disable certain metrics.
@@ -303,6 +413,13 @@ func (c *Controller) GarbageCollectMetrics(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	// TODO: This function must be checked (Runner metrics implementation)
+	storedRunners, err := c.Store.Runners(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Println("Stored Runners Metrics:", storedRunners)
 
 	storedRefs, err := c.Store.Refs(ctx)
 	if err != nil {
@@ -465,6 +582,23 @@ func deleteEnv(ctx context.Context, s store.Store, env schemas.Environment, reas
 		"environment-name": env.Name,
 		"reason":           reason,
 	}).Info("deleted environment from the store")
+
+	return
+}
+
+// deleteRunner removes the specified runner from the store and logs the deletion reason.
+// It takes a context, the store interface, the runner to delete, and a reason string.
+// If deletion fails, it returns the error to the caller.
+func deleteRunner(ctx context.Context, s store.Store, runner schemas.Runner, reason string) (err error) {
+	if err = s.DelRunner(ctx, runner.Key()); err != nil {
+		return
+	}
+
+	log.WithFields(log.Fields{
+		"project-name": runner.ProjectName,
+		"runner-name":  runner.Name,
+		"reason":       reason,
+	}).Info("deleted runner from the store")
 
 	return
 }

@@ -30,6 +30,14 @@ type Store interface {
 	Environments(ctx context.Context) (schemas.Environments, error)                 // Environments Retrieves all environments
 	EnvironmentsCount(ctx context.Context) (int64, error)                           // EnvironmentsCount Counts the number of environments
 
+	// Methods for manipulating runners
+	SetRunner(ctx context.Context, e schemas.Runner) error                // SetRunner Stores an environment
+	DelRunner(ctx context.Context, ek schemas.RunnerKey) error            // DelRunner Deletes an environment
+	GetRunner(ctx context.Context, e *schemas.Runner) error               // GetRunner Retrieves an environment
+	RunnerExists(ctx context.Context, ek schemas.RunnerKey) (bool, error) // RunnerExists Checks the existence of an environment
+	Runners(ctx context.Context) (schemas.Runners, error)                 // Environments Retrieves all environments
+	RunnersCount(ctx context.Context) (int64, error)                      // RunnersCount Counts the number of environments
+
 	// Methods for manipulating references
 	SetRef(ctx context.Context, r schemas.Ref) error                // SetRef Stores a reference
 	DelRef(ctx context.Context, rk schemas.RefKey) error            // DelRef Deletes a reference
@@ -67,6 +75,7 @@ func NewLocalStore() Store {
 	return &Local{
 		projects:          make(schemas.Projects),               // Initializes a collection of projects
 		environments:      make(schemas.Environments),           // Initializes a collection of environments
+		runners:           make(schemas.Runners),                // Initializes a collection of Runners
 		refs:              make(schemas.Refs),                   // Initializes a collection of references
 		metrics:           make(schemas.Metrics),                // initalizes a collection of metrics
 		pipelines:         make(schemas.Pipelines),              // Initialise a collection of pipleines
