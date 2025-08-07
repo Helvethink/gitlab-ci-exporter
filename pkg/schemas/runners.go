@@ -9,21 +9,6 @@ import (
 
 type RunnerKey string
 
-type RunnersList struct {
-	Id                 int
-	Description        string
-	IpAddress          interface{}
-	Active             bool
-	Paused             bool
-	IsShared           bool
-	RunnerType         string
-	Name               string
-	Online             bool
-	CreatedAt          time.Time
-	Status             string
-	JobExecutionStatus string
-}
-
 type Runner struct {
 	Paused          bool
 	Description     string
@@ -62,7 +47,7 @@ type Runners map[RunnerKey]Runner
 // Key generates a unique key for a Runner using a CRC32 checksum of the project name and runner name.
 func (r Runner) Key() RunnerKey {
 	// Generate a unique key using the CRC32 checksum of the project name and runner description
-	return RunnerKey(strconv.Itoa(int(crc32.ChecksumIEEE([]byte(r.ProjectName + r.Description)))))
+	return RunnerKey(strconv.Itoa(int(crc32.ChecksumIEEE([]byte(strconv.Itoa(r.ID))))))
 }
 
 // Count returns the number of environments in the Environments map.

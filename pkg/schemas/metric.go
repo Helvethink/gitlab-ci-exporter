@@ -119,6 +119,9 @@ const (
 
 	// MetricKindTestCaseStatus refers to the status of a test case.
 	MetricKindTestCaseStatus
+
+	// NewCollectorRunners refers to the runner information.
+	NewCollectorRunners
 )
 
 // Metric represents a metric with a kind, labels, and a value.

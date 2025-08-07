@@ -169,14 +169,12 @@ func (c *Client) GetRunner(ctx context.Context, project string, runnerID int) (r
 	runner.Name = r.Name
 	runner.Online = r.Online
 	runner.Status = r.Status
-	runner.Projects = r.Projects
 	runner.Token = r.Token
 	runner.TagList = r.TagList
 	runner.RunUntagged = r.RunUntagged
 	runner.Locked = r.Locked
 	runner.AccessLevel = r.AccessLevel
 	runner.MaximumTimeout = r.MaximumTimeout
-	runner.Groups = r.Groups
 
 	// Return the populated Environment struct and nil error
 	return

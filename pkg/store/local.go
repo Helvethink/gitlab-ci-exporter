@@ -199,7 +199,7 @@ func (l *Local) RunnerExists(_ context.Context, k schemas.RunnerKey) (bool, erro
 	l.runnersMutex.RLock()         // Lock the mutex for read-only access
 	defer l.runnersMutex.RUnlock() // Ensure the mutex is unlocked when the function exits
 
-	_, ok := l.runners[k] // Check if the environment exists
+	_, ok := l.runners[k] // Check if the runner exists
 
 	return ok, nil
 }
