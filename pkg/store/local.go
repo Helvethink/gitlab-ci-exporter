@@ -204,7 +204,7 @@ func (l *Local) RunnerExists(_ context.Context, k schemas.RunnerKey) (bool, erro
 	return ok, nil
 }
 
-func (l *Local) Runners(_ context.Context) (runners schemas.Runners, error) {
+func (l *Local) Runners(_ context.Context) (runners schemas.Runners, err error) {
 	runners = make(schemas.Runners)
 
 	l.runnersMutex.RLock()         // Lock the mutex for read-only access
