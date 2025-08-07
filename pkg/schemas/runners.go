@@ -1,75 +1,98 @@
 package schemas
 
 import (
+	"fmt"
 	"hash/crc32"
 	"strconv"
-	"strings" // For string manipulation operations
 	"time"
-
-	goGitlab "gitlab.com/gitlab-org/api/client-go" // GitLab API client
 )
 
-type RunnerKey int
+type RunnerKey string
 
 type RunnersList struct {
-	Id                 int         `json:"id"`
-	Description        string      `json:"description"`
-	IpAddress          interface{} `json:"ip_address"`
-	Active             bool        `json:"active"`
-	Paused             bool        `json:"paused"`
-	IsShared           bool        `json:"is_shared"`
-	RunnerType         string      `json:"runner_type"`
-	Name               string      `json:"name"`
-	Online             bool        `json:"online"`
-	CreatedAt          time.Time   `json:"created_at"`
-	Status             string      `json:"status"`
-	JobExecutionStatus string      `json:"job_execution_status"`
+	Id                 int
+	Description        string
+	IpAddress          interface{}
+	Active             bool
+	Paused             bool
+	IsShared           bool
+	RunnerType         string
+	Name               string
+	Online             bool
+	CreatedAt          time.Time
+	Status             string
+	JobExecutionStatus string
 }
 
 type Runner struct {
-	Id          int         `json:"id"`
-	Description string      `json:"description"`
-	IpAddress   interface{} `json:"ip_address"`
-	Active      bool        `json:"active"`
-	Paused      bool        `json:"paused"`
-	IsShared    bool        `json:"is_shared"`
-	RunnerType  string      `json:"runner_type"`
-	Name        interface{} `json:"name"`
-	Online      bool        `json:"online"`
-	CreatedBy   struct {
-		Id          int    `json:"id"`
-		Username    string `json:"username"`
-		PublicEmail string `json:"public_email"`
-		Name        string `json:"name"`
-		State       string `json:"state"`
-		Locked      bool   `json:"locked"`
-		AvatarUrl   string `json:"avatar_url"`
-		WebUrl      string `json:"web_url"`
-	} `json:"created_by"`
-	CreatedAt          time.Time     `json:"created_at"`
-	Status             string        `json:"status"`
-	JobExecutionStatus string        `json:"job_execution_status"`
-	TagList            []string      `json:"tag_list"`
-	RunUntagged        bool          `json:"run_untagged"`
-	Locked             bool          `json:"locked"`
-	MaximumTimeout     interface{}   `json:"maximum_timeout"`
-	AccessLevel        string        `json:"access_level"`
-	Version            string        `json:"version"`
-	Revision           string        `json:"revision"`
-	Platform           string        `json:"platform"`
-	Architecture       string        `json:"architecture"`
-	ContactedAt        time.Time     `json:"contacted_at"`
-	MaintenanceNote    string        `json:"maintenance_note"`
-	Projects           []interface{} `json:"projects"`
-	Groups             []struct {
-		Id     int    `json:"id"`
-		WebUrl string `json:"web_url"`
-		Name   string `json:"name"`
-	} `json:"groups"`
+	Paused          bool
+	Description     string
+	ID              int
+	IsShared        bool
+	RunnerType      string
+	ContactedAt     *time.Time
+	MaintenanceNote string
+	Name            string
+	Online          bool
+	Status          string
+	Token           string
+	TagList         []string
+	RunUntagged     bool
+	Locked          bool
+	AccessLevel     string
+	MaximumTimeout  int
+	Projects        []struct {
+		ID                int
+		Name              string
+		NameWithNamespace string
+		Path              string
+		PathWithNamespace string
+	}
+	Groups []struct {
+		ID     int
+		Name   string
+		WebURL string
+	}
+	ProjectName               string
+	OutputSparseStatusMetrics bool // Flag to determine if sparse status metrics should be output
 }
 
 type Runners map[RunnerKey]Runner
 
+// Key generates a unique key for a Runner using a CRC32 checksum of the project name and runner name.
 func (r Runner) Key() RunnerKey {
-	return RunnerKey(strconv.Itoa(int(crc32.ChecksumIEEE([]byte(r.Name)))))
+	// Generate a unique key using the CRC32 checksum of the project name and runner description
+	return RunnerKey(strconv.Itoa(int(crc32.ChecksumIEEE([]byte(r.ProjectName + r.Description)))))
+}
+
+// Count returns the number of environments in the Environments map.
+func (runners Runners) Count() int {
+	return len(runners)
+}
+
+// DefaultLabelsValues returns a map of default label values for an Runners.
+func (r Runner) DefaultLabelsValues() map[string]string {
+	return map[string]string{
+		"project":            r.ProjectName, // The name of the project
+		"runner_description": r.Description, // The description of the runner
+	}
+}
+
+// InformationLabelsValues returns a map of detailed label values for an Runner, including default labels.
+func (r Runner) InformationLabelsValues() (v map[string]string) {
+	// Start with the default label values
+	v = r.DefaultLabelsValues()
+
+	// Add additional detailed label values
+	v["runner_id"] = strconv.Itoa(r.ID)             // The unique identifier for the environment
+	v["is_shared"] = strconv.FormatBool(r.IsShared) // The kind of the latest deployment's reference
+	v["runner_type"] = r.RunnerType                 // The name of the latest deployment's reference
+	v["runner_projects"] = fmt.Sprint(r.Projects)   // The projects assigned to this runner
+	v["online"] = strconv.FormatBool(r.Online)      // The short ID of the current commit
+	v["tag_list"] = fmt.Sprint(r.TagList)           // Placeholder for the latest commit short ID (empty in this context)
+	v["active"] = strconv.FormatBool(r.Paused)      // The availability status of the environment
+	v["status"] = r.Status                          // The status of the runner
+	v["runner_groups"] = fmt.Sprint(r.Groups)       // The groups assigned to this runner
+
+	return v
 }

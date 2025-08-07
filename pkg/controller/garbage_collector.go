@@ -297,7 +297,7 @@ func (c *Controller) GarbageCollectRunners(ctx context.Context) error {
 
 	// Iterate over each stored runner
 	for _, runner := range storedRunners {
-		// Create a Project object from the runners's project name
+		// Create a Project object from the runner's project name
 		p := schemas.NewProject(runner.ProjectName)
 
 		// Check if the associated project still exists in the store
@@ -332,8 +332,8 @@ func (c *Controller) GarbageCollectRunners(ctx context.Context) error {
 
 		// Use the project's configured regex to check if this runner should be kept
 		re := regexp.MustCompile(p.Pull.Runners.Regexp)
-		if !re.MatchString(runner.Id) {
-			if err = deleteEnv(ctx, c.Store, runner, "runner-not-in-regexp"); err != nil {
+		if !re.MatchString(runner.Description) {
+			if err = deleteRunner(ctx, c.Store, runner, "runner-not-in-regexp"); err != nil {
 				return err
 			}
 			continue
@@ -358,7 +358,7 @@ func (c *Controller) GarbageCollectRunners(ctx context.Context) error {
 	// Prepare a map to hold runners refreshed from the GitLab API
 	existingRunners := make(schemas.Runners)
 
-	// For each project with tracked environments, fetch environments from GitLab API
+	// For each project with tracked runners, fetch runners from GitLab API
 	for p := range runnerProjects {
 		projectRunners, err := c.Gitlab.GetProjectRunners(ctx, p)
 		if err != nil {

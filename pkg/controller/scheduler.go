@@ -160,7 +160,7 @@ func (c *Controller) TaskHandlerPullEnvironmentMetrics(ctx context.Context, env 
 }
 
 // TaskHandlerPullRunnerMetrics TODO
-func (c *Controller) TaskHandlerPullRunnerMetrics(ctx context.Context, env schemas.Runner) {
+func (c *Controller) TaskHandlerPullRunnerMetrics(ctx context.Context, runner schemas.Runner) {
 	// Ensure the task is removed from the queue when this function exits
 	defer c.unqueueTask(ctx, schemas.TaskTypePullRunnersMetrics, string(runner.Key()))
 
