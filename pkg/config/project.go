@@ -43,9 +43,9 @@ type ProjectPullEnvironments struct {
 
 // ProjectPullRunners configures if and how runners are pulled for a project.
 type ProjectPullRunners struct {
-	Enabled        bool   `default:"false" yaml:"enabled"`
+	Enabled        bool   `default:"true" yaml:"enabled"`
 	Regexp         string `default:".*" yaml:"regexp"`
-	ExcludeStopped bool   `default:"true" yaml:"exclude_stopped"`
+	ExcludeStopped bool   `default:"false" yaml:"exclude_stopped"`
 }
 
 // ProjectPullRefs contains configuration for pulling refs: branches, tags, and merge requests.
