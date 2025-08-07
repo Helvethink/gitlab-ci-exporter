@@ -25,6 +25,7 @@ func (c *Controller) PullRunnersFromProject(ctx context.Context, p schemas.Proje
 
 		// Check if the runner already exists in the local store
 		exists, err = c.Store.RunnerExists(ctx, k)
+
 		if err != nil {
 			return
 		}
@@ -37,13 +38,15 @@ func (c *Controller) PullRunnersFromProject(ctx context.Context, p schemas.Proje
 			}
 
 			log.WithFields(log.Fields{
-				"project-name": runner.ProjectName,
-				"runner-id":    runner.ID,
-				"runner-name":  runner.Name,
+				"project-name":       runner.ProjectName,
+				"runner-id":          runner.ID,
+				"runner-name":        runner.Name,
+				"runner-description": runner.Description,
+				"runner-key":         k,
 			}).Info("discovered new runner")
 
 			// Schedule a task to pull runner metrics asynchronously
-			c.ScheduleTask(ctx, schemas.TaskTypePullEnvironmentMetrics, string(runner.Key()), runner)
+			c.ScheduleTask(ctx, schemas.TaskTypePullRunnersMetrics, string(runner.Key()), runner)
 		}
 	}
 

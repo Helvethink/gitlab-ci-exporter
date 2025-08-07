@@ -164,17 +164,19 @@ func (c *Controller) TaskHandlerPullRunnerMetrics(ctx context.Context, runner sc
 	// Ensure the task is removed from the queue when this function exits
 	defer c.unqueueTask(ctx, schemas.TaskTypePullRunnersMetrics, string(runner.Key()))
 
-	// Attempt to pull environment metrics, log warning on failure but do not retry
-	if err := c.PullRunnerMetrics(ctx, runner); err != nil {
-		log.WithContext(ctx).
-			WithFields(log.Fields{
-				"project-name": runner.ProjectName,
-				"runner-name":  runner.Name,
-				"runner-id":    runner.ID,
-			}).
-			WithError(err).
-			Warn("pulling environment metrics")
-	}
+	// Attempt to pull runner metrics, log warning on failure but do not retry
+	/*
+		if err := c.PullRunnerMetrics(ctx, runner); err != nil {
+			log.WithContext(ctx).
+				WithFields(log.Fields{
+					"project-name": runner.ProjectName,
+					"runner-name":  runner.Name,
+					"runner-id":    runner.ID,
+				}).
+				WithError(err).
+				Warn("pulling runner metrics")
+		}
+	*/
 }
 
 // TaskHandlerPullRefsFromProject handles the task of pulling refs (branches, tags, etc.)

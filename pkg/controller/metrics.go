@@ -28,6 +28,7 @@ type Registry struct {
 		MetricsCount               prometheus.Collector // Number of exported metrics.
 		ProjectsCount              prometheus.Collector // Total number of GitLab projects tracked.
 		RefsCount                  prometheus.Collector // Total number of Git refs (branches, tags, MRs).
+		RunnersCount               prometheus.Collector // Total number of Runners exported.
 	}
 
 	// Collectors maps each MetricKind to its Prometheus collector.
@@ -65,6 +66,7 @@ func NewRegistry(ctx context.Context) *Registry {
 			schemas.MetricKindQueuedDurationSeconds:                NewCollectorQueuedDurationSeconds(),
 			schemas.MetricKindRunCount:                             NewCollectorRunCount(),
 			schemas.MetricKindStatus:                               NewCollectorStatus(),
+			schemas.MetricKindRunner:                               NewCollectorRunners(),
 			schemas.MetricKindTimestamp:                            NewCollectorTimestamp(),
 			schemas.MetricKindTestReportTotalTime:                  NewCollectorTestReportTotalTime(),
 			schemas.MetricKindTestReportTotalCount:                 NewCollectorTestReportTotalCount(),
@@ -109,6 +111,7 @@ func (r *Registry) RegisterInternalCollectors() {
 	r.InternalCollectors.MetricsCount = NewInternalCollectorMetricsCount()                             // Number of metrics exported
 	r.InternalCollectors.ProjectsCount = NewInternalCollectorProjectsCount()                           // Number of tracked projects
 	r.InternalCollectors.RefsCount = NewInternalCollectorRefsCount()                                   // Number of Git refs (branches, tags, etc.)
+	r.InternalCollectors.RunnersCount = NewInternalCollectorRunnersCount()                             // Number of Runners exported
 
 	// Register all initialized internal collectors with the Prometheus registry.
 	// The underscore `_` ignores any error returned by Register (e.g., if already registered).
@@ -121,6 +124,7 @@ func (r *Registry) RegisterInternalCollectors() {
 	_ = r.Register(r.InternalCollectors.MetricsCount)
 	_ = r.Register(r.InternalCollectors.ProjectsCount)
 	_ = r.Register(r.InternalCollectors.RefsCount)
+	_ = r.Register(r.InternalCollectors.RunnersCount)
 }
 
 // ExportInternalMetrics gathers internal statistics from the store and GitLab client,
@@ -133,6 +137,7 @@ func (r *Registry) ExportInternalMetrics(ctx context.Context, g *gitlab.Client, 
 		metricsCount         int64  // Number of stored/exported metrics
 		projectsCount        int64  // Number of projects tracked
 		refsCount            int64  // Number of Git references (branches/tags)
+		runnersCount         int64  // Number of Runners exported
 	)
 
 	// Retrieve the number of currently queued tasks from the store
@@ -171,6 +176,11 @@ func (r *Registry) ExportInternalMetrics(ctx context.Context, g *gitlab.Client, 
 		return
 	}
 
+	runnersCount, err = s.RunnersCount(ctx)
+	if err != nil {
+		return
+	}
+
 	// Set Prometheus gauge values for each internal metric.
 	// All collectors are asserted as GaugeVec and updated with empty labels.
 	r.InternalCollectors.CurrentlyQueuedTasksCount.(*prometheus.GaugeVec).With(prometheus.Labels{}).Set(float64(currentlyQueuedTasks))
@@ -182,6 +192,7 @@ func (r *Registry) ExportInternalMetrics(ctx context.Context, g *gitlab.Client, 
 	r.InternalCollectors.MetricsCount.(*prometheus.GaugeVec).With(prometheus.Labels{}).Set(float64(metricsCount))
 	r.InternalCollectors.ProjectsCount.(*prometheus.GaugeVec).With(prometheus.Labels{}).Set(float64(projectsCount))
 	r.InternalCollectors.RefsCount.(*prometheus.GaugeVec).With(prometheus.Labels{}).Set(float64(refsCount))
+	r.InternalCollectors.RunnersCount.(*prometheus.GaugeVec).With(prometheus.Labels{}).Set(float64(runnersCount))
 
 	return
 }
