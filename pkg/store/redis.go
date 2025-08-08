@@ -16,6 +16,7 @@ import (
 const (
 	redisProjectsKey           string = "projects"
 	redisEnvironmentsKey       string = "environments"
+	redisRunnerKey             string = "runner"
 	redisRefsKey               string = "refs"
 	redisMetricsKey            string = "metrics"
 	redisPipelinesKey          string = "pipelines"
@@ -28,6 +29,88 @@ const (
 // Redis represents a Redis client wrapper.
 type Redis struct {
 	*redis.Client
+}
+
+// SetRunner stores an runner in Redis.
+func (r *Redis) SetRunner(ctx context.Context, ru schemas.Runner) error {
+	// Marshall the runner into binary format using MessagePack
+	marshalledRunner, err := msgpack.Marshal(ru)
+	if err != nil {
+		return err
+	}
+
+	// Store the marshalled runner to Redis
+	_, err = r.HSet(ctx, redisRunnerKey, string(ru.Key()), marshalledRunner).Result()
+	return err
+}
+
+// DelRunner deletes a runner from Redis.
+func (r *Redis) DelRunner(ctx context.Context, rk schemas.RunnerKey) error {
+	// Delete the runner from redis
+	_, err := r.HDel(ctx, redisRunnerKey, string(rk)).Result()
+	return err
+}
+
+// GetRunner retrieves a runner from Redis.
+func (r *Redis) GetRunner(ctx context.Context, ru *schemas.Runner) error {
+	// Check if the runner exists
+	exists, err := r.RunnerExists(ctx, ru.Key())
+	if err != nil {
+		return err
+	}
+
+	if exists {
+		k := ru.Key()
+
+		// Retrieve the marshalled runner from Redis
+		marshalledEnvironment, err := r.HGet(ctx, redisRunnerKey, string(k)).Result()
+		if err != nil {
+			return err
+		}
+
+		// Unmarshal the environment data into the provided runner structure
+		if err = msgpack.Unmarshal([]byte(marshalledEnvironment), ru); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// RunnerExists checks if an runner exists in Redis.
+func (r *Redis) RunnerExists(ctx context.Context, rk schemas.RunnerKey) (bool, error) {
+	// Check if the runner key exists in Redis
+	return r.HExists(ctx, redisRunnerKey, string(rk)).Result()
+}
+
+// Runners retrieves all runners from Redis.
+func (r *Redis) Runners(ctx context.Context) (schemas.Runners, error) {
+	runners := schemas.Runners{}
+
+	// Retrieve all marshalled runners from Redis
+	marshalledRunners, err := r.HGetAll(ctx, redisRunnerKey).Result()
+	if err != nil {
+		return runners, err
+	}
+
+	// Unmarshal each runner and add it to the runners map
+	for stringRunnerKey, marshalledRunner := range marshalledRunners {
+		ru := schemas.Runner{}
+
+		if err = msgpack.Unmarshal([]byte(marshalledRunner), &ru); err != nil {
+			return runners, err
+		}
+
+		runners[schemas.RunnerKey(stringRunnerKey)] = ru
+	}
+
+	return runners, nil
+}
+
+// RunnersCount returns the count of runner in Redis.
+func (r *Redis) RunnersCount(ctx context.Context) (int64, error) {
+	// Get the number of runner stored in Redis
+	return r.HLen(ctx, redisRunnerKey).Result()
 }
 
 // SetProject stores a project in Redis.

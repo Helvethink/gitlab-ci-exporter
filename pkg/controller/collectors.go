@@ -1,6 +1,8 @@
 package controller
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 // Commonly used label sets for Prometheus metrics in this application.
 // These labels help categorize and filter metrics for better observability.
@@ -39,6 +41,12 @@ var (
 		"created", "waiting_for_resource", "preparing", "pending", "running",
 		"success", "failed", "canceled", "skipped", "manual", "scheduled", "error", "success_with_warnings",
 	}
+
+	// runnerLabels defines labels for metrics related to runner deploy.
+	runnerLabels = []string{
+		"project", "runner_description", "runner_name", "runner_id", "is_shared", "runner_type", "runner_projects",
+		"online", "tag_list", "active", "status", "runner_groups",
+	}
 )
 
 // NewInternalCollectorCurrentlyQueuedTasksCount creates and returns a new Prometheus GaugeVec metric collector
@@ -66,6 +74,21 @@ func NewInternalCollectorEnvironmentsCount() prometheus.Collector {
 		prometheus.GaugeOpts{
 			Name: "gcpe_environments_count",
 			Help: "Number of GitLab environments being exported",
+		},
+		[]string{}, // no labels for this metric
+	)
+}
+
+// NewInternalCollectorRunnersCount returns a new Prometheus gauge collector
+// for the metric "gcpe_runners_count" which tracks the total number of GitLab runners
+// currently being exported by the application.
+//
+// This metric has no labels, representing a simple numeric gauge.
+func NewInternalCollectorRunnersCount() prometheus.Collector {
+	return prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "gcpe_runners_count",
+			Help: "Number of GitLab runners being exported",
 		},
 		[]string{}, // no labels for this metric
 	)
@@ -531,6 +554,21 @@ func NewCollectorRunCount() prometheus.Collector {
 			Help: "Number of executions of a pipeline",
 		},
 		append(defaultLabels, pipelineLabels...),
+	)
+}
+
+// NewCollectorRunners returns a new Prometheus gauge collector for the
+// metric "gitlab_ci_runners". This metric reports information about your runners.
+//
+// The labels include the default set of labels plus an additional "runnerLabels" label
+// and "runnnerInformationLabels" that describes the runners state.
+func NewCollectorRunners() prometheus.Collector {
+	return prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "gitlab_ci_runners",
+			Help: "Status of your runners",
+		},
+		runnerLabels,
 	)
 }
 

@@ -119,6 +119,9 @@ const (
 
 	// MetricKindTestCaseStatus refers to the status of a test case.
 	MetricKindTestCaseStatus
+
+	// MetricKindRunner refers to the runner information.
+	MetricKindRunner
 )
 
 // Metric represents a metric with a kind, labels, and a value.
@@ -193,6 +196,20 @@ func (m Metric) Key() MetricKey {
 			m.Labels["test_suite_name"],
 			m.Labels["test_case_name"],
 			m.Labels["test_case_classname"],
+		})
+
+	case MetricKindRunner:
+		key += fmt.Sprintf("%v", []string{
+			m.Labels["project"],
+			m.Labels["kind"],
+			m.Labels["runner_id"],
+			m.Labels["runner_description"],
+			m.Labels["runner_groups"],
+			m.Labels["runner_projects"],
+			m.Labels["runner_type"],
+			m.Labels["tag_list"],
+			m.Labels["is_shared"],
+			m.Labels["active"],
 		})
 	}
 

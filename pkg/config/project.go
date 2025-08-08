@@ -21,6 +21,7 @@ type ProjectParameters struct {
 // such as environments, refs (branches, tags, MRs), and pipelines.
 type ProjectPull struct {
 	Environments ProjectPullEnvironments `yaml:"environments"`
+	Runners      ProjectPullRunners      `yaml:"runners"`
 	Refs         ProjectPullRefs         `yaml:"refs"`
 	Pipeline     ProjectPullPipeline     `yaml:"pipeline"`
 }
@@ -38,6 +39,13 @@ type ProjectPullEnvironments struct {
 	// ExcludeStopped indicates if environments that are stopped should be excluded from metrics export.
 	// Defaults to true.
 	ExcludeStopped bool `default:"true" yaml:"exclude_stopped"`
+}
+
+// ProjectPullRunners configures if and how runners are pulled for a project.
+type ProjectPullRunners struct {
+	Enabled        bool   `default:"true" yaml:"enabled"`
+	Regexp         string `default:".*" yaml:"regexp"`
+	ExcludeStopped bool   `default:"false" yaml:"exclude_stopped"`
 }
 
 // ProjectPullRefs contains configuration for pulling refs: branches, tags, and merge requests.

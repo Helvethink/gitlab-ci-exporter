@@ -27,7 +27,8 @@ message Telemetry {
   Entity projects = 7;
   Entity refs = 8;
   Entity envs = 9;
-  Entity metrics = 10;
+  Entity runners = 10;
+  Entity metrics = 11;
 }
 
 message Entity {

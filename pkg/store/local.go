@@ -15,6 +15,9 @@ type Local struct {
 	environments      schemas.Environments
 	environmentsMutex sync.RWMutex // Mutex for thread-safe access to environments
 
+	runners      schemas.Runners
+	runnersMutex sync.RWMutex // Mutex for thread-safe access to runners
+
 	refs      schemas.Refs
 	refsMutex sync.RWMutex // Mutex for thread-safe access to references
 
@@ -160,6 +163,67 @@ func (l *Local) EnvironmentsCount(_ context.Context) (int64, error) {
 	defer l.environmentsMutex.RUnlock() // Ensure the mutex is unlocked when the function exits
 
 	return int64(len(l.environments)), nil // Return the number of environments
+}
+
+func (l *Local) SetRunner(_ context.Context, runner schemas.Runner) error {
+	l.runnersMutex.Lock()         // Lock the mutex for exclusive access
+	defer l.runnersMutex.Unlock() // Ensure the mutex is unlocked when the function exits
+
+	l.runners[runner.Key()] = runner // Store the runner
+
+	return nil
+}
+
+func (l *Local) DelRunner(_ context.Context, k schemas.RunnerKey) error {
+	l.runnersMutex.Lock()         // Lock the mutex for exclusive access
+	defer l.runnersMutex.Unlock() // Ensure the mutex is unlocked when the function exits
+
+	delete(l.runners, k) // Delete the runner
+
+	return nil
+}
+
+func (l *Local) GetRunner(ctx context.Context, runner *schemas.Runner) error {
+	exists, _ := l.RunnerExists(ctx, runner.Key())
+
+	if exists {
+		l.environmentsMutex.RLock()       // Lock the mutex for read-only access
+		*runner = l.runners[runner.Key()] // Retrieve the runner
+		l.environmentsMutex.RUnlock()     // Unlock the mutex
+	}
+
+	return nil
+}
+
+func (l *Local) RunnerExists(_ context.Context, k schemas.RunnerKey) (bool, error) {
+	l.runnersMutex.RLock()         // Lock the mutex for read-only access
+	defer l.runnersMutex.RUnlock() // Ensure the mutex is unlocked when the function exits
+
+	_, ok := l.runners[k] // Check if the runner exists
+
+	return ok, nil
+}
+
+func (l *Local) Runners(_ context.Context) (runners schemas.Runners, err error) {
+	runners = make(schemas.Runners)
+
+	l.runnersMutex.RLock()         // Lock the mutex for read-only access
+	defer l.runnersMutex.RUnlock() // Ensure the mutex is unlocked when the function exits
+
+	for k, v := range l.runners {
+		runners[k] = v // Copy all runners to the result
+	}
+
+	return
+
+}
+
+func (l *Local) RunnersCount(_ context.Context) (int64, error) {
+	l.runnersMutex.RLock()         // Lock the mutex for read-only access
+	defer l.runnersMutex.RUnlock() // Ensure the mutex is unlocked when the function exits
+
+	return int64(len(l.runners)), nil // Return the number of runners
+
 }
 
 // SetRef stores a reference in the local storage.

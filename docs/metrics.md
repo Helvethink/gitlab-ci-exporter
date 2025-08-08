@@ -13,6 +13,7 @@
 | `gcpe_metrics_count` | Number of GitLab pipelines metrics being exported || *available by default* |
 | `gcpe_projects_count` | Number of GitLab projects being exported || *available by default* |
 | `gcpe_refs_count` | Number of GitLab refs being exported || *available by default* |
+| `gcpe_runners_count` | Number of Runners being exported || *available by default* |
 | `gitlab_ci_environment_behind_commits_count` | Number of commits the environment is behind given its last deployment | [project], [environment] | `project_defaults.pull.environments.enabled` |
 | `gitlab_ci_environment_behind_duration_seconds` | Duration in seconds the environment is behind the most recent commit given its last deployment | [project], [environment] | `project_defaults.pull.environments.enabled` |
 | `gitlab_ci_environment_deployment_count` |Number of deployments for an environment | [project], [environment] | `project_defaults.pull.environments.enabled` |
