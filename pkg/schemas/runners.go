@@ -69,6 +69,7 @@ func (r Runner) InformationLabelsValues() (v map[string]string) {
 	v = r.DefaultLabelsValues()
 
 	// Add additional detailed label values
+	v["runner_name"] = r.Name                       // The name of the runner
 	v["runner_id"] = strconv.Itoa(r.ID)             // The unique identifier for the environment
 	v["is_shared"] = strconv.FormatBool(r.IsShared) // The kind of the latest deployment's reference
 	v["runner_type"] = r.RunnerType                 // The name of the latest deployment's reference

@@ -521,6 +521,12 @@ func (c *Controller) GarbageCollectMetrics(ctx context.Context) error {
 				// no action for other kinds here
 			}
 		}
+		// TODO: Handle metrics related to Runner
+		/**
+		switch m.Kind {
+				case schemas.MetricKindRunner
+		}
+		*/
 
 		// Handle metrics related to an Environment.
 		if metricLabelEnvironmentExists {

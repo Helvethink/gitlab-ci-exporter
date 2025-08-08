@@ -126,7 +126,7 @@ func (c *Client) GetRunner(ctx context.Context, project string, runnerID int) (r
 		resp *goGitlab.Response      // response metadata including pagination and headers
 	)
 
-	// Call GitLab API to get environment details
+	// Call GitLab API to get runner details
 	r, resp, err = c.Runners.GetRunnerDetails(runnerID, goGitlab.WithContext(ctx))
 	if err != nil || r == nil {
 		// Return immediately if error occurs or no environment was found
@@ -147,7 +147,7 @@ func (c *Client) GetRunner(ctx context.Context, project string, runnerID int) (r
 	}
 	*/
 
-	// If the environment has no recorded last deployment, log and return as is
+	// If the runner has not recorded last details, log and return as is
 	if r.Groups == nil {
 		log.WithContext(ctx).
 			WithFields(log.Fields{

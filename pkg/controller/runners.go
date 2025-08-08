@@ -2,8 +2,10 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"github.com/helvethink/gitlab-ci-exporter/pkg/schemas"
 	log "github.com/sirupsen/logrus"
+	"strconv"
 )
 
 // PullRunnersFromProject fetches the list of runners for a given project from the GitLab API,
@@ -69,5 +71,45 @@ func (c *Controller) UpdateRunner(ctx context.Context, runner *schemas.Runner) e
 	runner.MaintenanceNote = pulledRunner.MaintenanceNote
 
 	// Save the updated runner back to the store
+	err = c.ProcessRunnerMetrics(ctx, *runner)
+	if err != nil {
+		return err
+	}
+
 	return c.Store.SetRunner(ctx, *runner)
+}
+
+// ProcessRunnerMetrics processes metrics for a given runner and updates the store accordingly.
+func (c *Controller) ProcessRunnerMetrics(ctx context.Context, runner schemas.Runner) (err error) {
+	// Prepare logging fields with project, job name, and job ID for contextual logging
+	projectRefLogFields := log.Fields{
+		"project-name": runner.ProjectName,
+		"runner-id":    runner.ID,
+		"runner-desc":  runner.Description,
+	}
+
+	// Initialize labels from the reference default labels and add job-specific labels
+	labels := runner.DefaultLabelsValues()
+	labels["runner_name"] = runner.Name
+	labels["runner_id"] = strconv.Itoa(runner.ID)             // The unique identifier for the environment
+	labels["is_shared"] = strconv.FormatBool(runner.IsShared) // The kind of the latest deployment's reference
+	labels["runner_type"] = runner.RunnerType                 // The name of the latest deployment's reference
+	labels["runner_projects"] = fmt.Sprint(runner.Projects)   // The projects assigned to this runner
+	labels["online"] = strconv.FormatBool(runner.Online)      // The short ID of the current commit
+	labels["tag_list"] = fmt.Sprint(runner.TagList)           // Placeholder for the latest commit short ID (empty in this context)
+	labels["active"] = strconv.FormatBool(runner.Paused)      // The availability status of the environment
+	labels["status"] = runner.Status                          // The status of the runner
+	labels["runner_groups"] = fmt.Sprint(runner.Groups)       // The groups assigned to this runner
+
+	// Log trace info indicating that job metrics are being processed
+	log.WithFields(projectRefLogFields).Trace("processing runner metrics")
+
+	// Store the size of job artifacts in bytes
+	storeSetMetric(ctx, c.Store, schemas.Metric{
+		Kind:   schemas.MetricKindRunner,
+		Labels: labels,
+		Value:  1,
+	})
+	
+	return nil
 }

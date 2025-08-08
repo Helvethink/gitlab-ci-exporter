@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-
 	log "github.com/sirupsen/logrus"
 
 	"github.com/helvethink/gitlab-ci-exporter/pkg/schemas"

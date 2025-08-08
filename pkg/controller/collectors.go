@@ -1,6 +1,8 @@
 package controller
 
-import "github.com/prometheus/client_golang/prometheus"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+)
 
 // Commonly used label sets for Prometheus metrics in this application.
 // These labels help categorize and filter metrics for better observability.
@@ -41,12 +43,9 @@ var (
 	}
 
 	// runnerLabels defines labels for metrics related to runner deploy.
-	runnerLabels = []string{"runner_id", "runner_description"}
-
-	// runnnerInformationLabels contains more detailed labels providing metadata about runners.
-	runnnerInformationLabels = []string{
-		"runner_name", "is_shared",
-		"runner_type", "runner_projects", "online", "tag_list", "active", "status", "runner_groups",
+	runnerLabels = []string{
+		"project", "runner_description", "runner_name", "runner_id", "is_shared", "runner_type", "runner_projects",
+		"online", "tag_list", "active", "status", "runner_groups",
 	}
 )
 
@@ -569,7 +568,7 @@ func NewCollectorRunners() prometheus.Collector {
 			Name: "gitlab_ci_runners",
 			Help: "Status of your runners",
 		},
-		append(defaultLabels, append(runnerLabels, runnnerInformationLabels...)...),
+		runnerLabels,
 	)
 }
 
