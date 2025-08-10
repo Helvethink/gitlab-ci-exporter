@@ -90,8 +90,8 @@ func (r Runner) InformationLabelsValues() (v map[string]string) {
 	v["tag_list"] = fmt.Sprint(r.TagList)           // Placeholder for the latest commit short ID (empty in this context)
 	v["active"] = strconv.FormatBool(r.Paused)      // The availability status of the environment
 	v["status"] = r.Status                          // The status of the runner
-	v["runner_groups"] = fmt.Sprint(GroupsOut)      // The groups assigned to this runner
-	v["runner_projects"] = fmt.Sprint(projectsOut)  // The projects assigned to this runner
+	v["runner_groups"] = string(GroupsOut)          // The groups assigned to this runner
+	v["runner_projects"] = string(projectsOut)      // The projects assigned to this runner
 
 	fmt.Printf("Runner Labels:\n%v\n", v)
 
