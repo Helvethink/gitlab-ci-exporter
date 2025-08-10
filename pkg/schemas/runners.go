@@ -1,6 +1,7 @@
 package schemas
 
 import (
+	"encoding/json"
 	"fmt"
 	"hash/crc32"
 	"strconv"
@@ -68,17 +69,31 @@ func (r Runner) InformationLabelsValues() (v map[string]string) {
 	// Start with the default label values
 	v = r.DefaultLabelsValues()
 
+	// Marshal Groups and projects
+	groups := r.Groups
+	GroupsOut, err := json.Marshal(groups)
+	if err != nil {
+		return nil
+	}
+	projects := r.Projects
+	projectsOut, err := json.Marshal(projects)
+	if err != nil {
+		return nil
+	}
+
 	// Add additional detailed label values
 	v["runner_name"] = r.Name                       // The name of the runner
 	v["runner_id"] = strconv.Itoa(r.ID)             // The unique identifier for the environment
 	v["is_shared"] = strconv.FormatBool(r.IsShared) // The kind of the latest deployment's reference
 	v["runner_type"] = r.RunnerType                 // The name of the latest deployment's reference
-	v["runner_projects"] = fmt.Sprint(r.Projects)   // The projects assigned to this runner
 	v["online"] = strconv.FormatBool(r.Online)      // The short ID of the current commit
 	v["tag_list"] = fmt.Sprint(r.TagList)           // Placeholder for the latest commit short ID (empty in this context)
 	v["active"] = strconv.FormatBool(r.Paused)      // The availability status of the environment
 	v["status"] = r.Status                          // The status of the runner
-	v["runner_groups"] = fmt.Sprint(r.Groups)       // The groups assigned to this runner
+	v["runner_groups"] = fmt.Sprint(GroupsOut)      // The groups assigned to this runner
+	v["runner_projects"] = fmt.Sprint(projectsOut)  // The projects assigned to this runner
+
+	fmt.Printf("Runner Labels:\n%v\n", v)
 
 	return v
 }
