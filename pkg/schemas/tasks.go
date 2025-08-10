@@ -45,6 +45,12 @@ const (
 
 	// TaskTypeGarbageCollectMetrics represents a task type for garbage collecting metrics.
 	TaskTypeGarbageCollectMetrics TaskType = "GarbageCollectMetrics"
+
+	TaskTypePullRunnersMetrics      TaskType = "PullRunnersMetrics"
+	TaskTypePullRunnersFromProjects TaskType = "PullRunnersFromProjects"
+	TaskTypePullRunnersFromProject  TaskType = "PullRunnerFromProject"
+
+	TaskTypeGarbageCollectRunners TaskType = "GarbageCollectRunners"
 )
 
 // Tasks is a map structure used to keep track of tasks.

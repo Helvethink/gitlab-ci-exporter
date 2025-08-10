@@ -122,6 +122,7 @@ type Telemetry struct {
 	Refs                    *Entity `protobuf:"bytes,8,opt,name=refs,proto3" json:"refs,omitempty"`
 	Envs                    *Entity `protobuf:"bytes,9,opt,name=envs,proto3" json:"envs,omitempty"`
 	Metrics                 *Entity `protobuf:"bytes,10,opt,name=metrics,proto3" json:"metrics,omitempty"`
+	Runners                 *Entity `protobuf:"bytes,11,opt,name=runners,proto3" json:"runners,omitempty"`
 }
 
 func (x *Telemetry) Reset() {

@@ -50,6 +50,8 @@ func (c *Controller) PullProject(ctx context.Context, name string, pull config.P
 		c.ScheduleTask(ctx, schemas.TaskTypePullRefsFromProject, string(p.Key()), p)
 		// Schedule a task to pull environments related to the project
 		c.ScheduleTask(ctx, schemas.TaskTypePullEnvironmentsFromProject, string(p.Key()), p)
+		// Schedule a task to pull runners for this project
+		c.ScheduleTask(ctx, schemas.TaskTypePullRunnersFromProject, string(p.Key()), p)
 	}
 
 	// Return nil if successful or after logging errors from SetProject
@@ -99,6 +101,8 @@ func (c *Controller) PullProjectsFromWildcard(ctx context.Context, w config.Wild
 			c.ScheduleTask(ctx, schemas.TaskTypePullRefsFromProject, string(p.Key()), p)
 			// Schedule a task to pull environments for this project
 			c.ScheduleTask(ctx, schemas.TaskTypePullEnvironmentsFromProject, string(p.Key()), p)
+			// Schedule a task to pull runners for this project
+			c.ScheduleTask(ctx, schemas.TaskTypePullRunnersFromProject, string(p.Key()), p)
 		}
 	}
 

@@ -120,6 +120,25 @@ func (c *Controller) TaskHandlerPullEnvironmentsFromProject(ctx context.Context,
 	}
 }
 
+// TaskHandlerPullRunnersFromProject TODO
+func (c *Controller) TaskHandlerPullRunnersFromProject(ctx context.Context, p schemas.Project) {
+	// Ensure the task is removed from the queue after processing
+	defer c.unqueueTask(ctx, schemas.TaskTypePullRunnersFromProject, string(p.Key()))
+
+	// Only proceed if runners pulling is enabled for the project
+	if p.Pull.Runners.Enabled {
+		// Attempt to pull runners from the project
+		if err := c.PullRunnersFromProject(ctx, p); err != nil {
+			log.WithContext(ctx).
+				WithFields(log.Fields{
+					"project-name": p.Name,
+				}).
+				WithError(err).
+				Warn("pulling runners from project")
+		}
+	}
+}
+
 // TaskHandlerPullEnvironmentMetrics handles the task of pulling metrics
 // for a specific environment. It ensures the task is unqueued after processing,
 // and logs any errors encountered without retrying the task.
@@ -138,6 +157,26 @@ func (c *Controller) TaskHandlerPullEnvironmentMetrics(ctx context.Context, env 
 			WithError(err).
 			Warn("pulling environment metrics")
 	}
+}
+
+// TaskHandlerPullRunnerMetrics TODO
+func (c *Controller) TaskHandlerPullRunnerMetrics(ctx context.Context, runner schemas.Runner) {
+	// Ensure the task is removed from the queue when this function exits
+	defer c.unqueueTask(ctx, schemas.TaskTypePullRunnersMetrics, string(runner.Key()))
+
+	// Attempt to pull runner metrics, log warning on failure but do not retry
+	/*
+		if err := c.PullRunnerMetrics(ctx, runner); err != nil {
+			log.WithContext(ctx).
+				WithFields(log.Fields{
+					"project-name": runner.ProjectName,
+					"runner-name":  runner.Name,
+					"runner-id":    runner.ID,
+				}).
+				WithError(err).
+				Warn("pulling runner metrics")
+		}
+	*/
 }
 
 // TaskHandlerPullRefsFromProject handles the task of pulling refs (branches, tags, etc.)
@@ -237,6 +276,43 @@ func (c *Controller) TaskHandlerPullEnvironmentsFromProjects(ctx context.Context
 	// For each project, schedule a task to pull its environments
 	for _, p := range projects {
 		c.ScheduleTask(ctx, schemas.TaskTypePullEnvironmentsFromProject, string(p.Key()), p)
+	}
+}
+
+// TaskHandlerPullRunnersFromProjects TODO
+func (c *Controller) TaskHandlerPullRunnersFromProjects(ctx context.Context) {
+	// Remove this task from the queue after completion
+	defer c.unqueueTask(ctx, schemas.TaskTypePullRunnersFromProjects, "_")
+
+	// Update the monitoring information about the last time this task type was scheduled
+	defer c.TaskController.monitorLastTaskScheduling(schemas.TaskTypePullRunnersFromProjects)
+
+	// Retrieve the count of projects in the store
+	projectsCount, err := c.Store.ProjectsCount(ctx)
+	if err != nil {
+		log.WithContext(ctx).
+			WithError(err).
+			Error("error counting projects in the store")
+	}
+
+	// Log the number of projects found to schedule runners pulls
+	log.WithFields(
+		log.Fields{
+			"projects-count": projectsCount,
+		},
+	).Info("scheduling runners from projects pull")
+
+	// Retrieve the list of projects from the store
+	projects, err := c.Store.Projects(ctx)
+	if err != nil {
+		log.WithContext(ctx).
+			WithError(err).
+			Error("error retrieving projects from the store")
+	}
+
+	// For each project, schedule a task to pull its environments
+	for _, p := range projects {
+		c.ScheduleTask(ctx, schemas.TaskTypePullRunnersFromProject, string(p.Key()), p)
 	}
 }
 
@@ -383,6 +459,14 @@ func (c *Controller) TaskHandlerGarbageCollectMetrics(ctx context.Context) error
 	return c.GarbageCollectMetrics(ctx)
 }
 
+// TaskHandlerGarbageCollectRunners TODO
+func (c *Controller) TaskHandlerGarbageCollectRunners(ctx context.Context) error {
+	defer c.unqueueTask(ctx, schemas.TaskTypeGarbageCollectRunners, "_")
+	defer c.TaskController.monitorLastTaskScheduling(schemas.TaskTypeGarbageCollectRunners)
+
+	return c.GarbageCollectRunners(ctx)
+}
+
 // Schedule initializes and schedules various periodic tasks based on configuration.
 // It starts an OpenTelemetry span to trace scheduling operations.
 //
@@ -416,10 +500,12 @@ func (c *Controller) Schedule(ctx context.Context, pull config.Pull, gc config.G
 	for tt, cfg := range map[schemas.TaskType]config.SchedulerConfig{
 		schemas.TaskTypePullProjectsFromWildcards:    config.SchedulerConfig(pull.ProjectsFromWildcards),
 		schemas.TaskTypePullEnvironmentsFromProjects: config.SchedulerConfig(pull.EnvironmentsFromProjects),
+		schemas.TaskTypePullRunnersFromProjects:      config.SchedulerConfig(pull.RunnersFromProjects),
 		schemas.TaskTypePullRefsFromProjects:         config.SchedulerConfig(pull.RefsFromProjects),
 		schemas.TaskTypePullMetrics:                  config.SchedulerConfig(pull.Metrics),
 		schemas.TaskTypeGarbageCollectProjects:       config.SchedulerConfig(gc.Projects),
 		schemas.TaskTypeGarbageCollectEnvironments:   config.SchedulerConfig(gc.Environments),
+		schemas.TaskTypeGarbageCollectRunners:        config.SchedulerConfig(gc.Runners),
 		schemas.TaskTypeGarbageCollectRefs:           config.SchedulerConfig(gc.Refs),
 		schemas.TaskTypeGarbageCollectMetrics:        config.SchedulerConfig(gc.Metrics),
 	} {

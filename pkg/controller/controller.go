@@ -94,6 +94,7 @@ func (c *Controller) registerTasks() {
 		schemas.TaskTypeGarbageCollectMetrics:        c.TaskHandlerGarbageCollectMetrics,
 		schemas.TaskTypeGarbageCollectProjects:       c.TaskHandlerGarbageCollectProjects,
 		schemas.TaskTypeGarbageCollectRefs:           c.TaskHandlerGarbageCollectRefs,
+		schemas.TaskTypeGarbageCollectRunners:        c.TaskHandlerGarbageCollectRunners,
 		schemas.TaskTypePullEnvironmentMetrics:       c.TaskHandlerPullEnvironmentMetrics,
 		schemas.TaskTypePullEnvironmentsFromProject:  c.TaskHandlerPullEnvironmentsFromProject,
 		schemas.TaskTypePullEnvironmentsFromProjects: c.TaskHandlerPullEnvironmentsFromProjects,
@@ -104,6 +105,9 @@ func (c *Controller) registerTasks() {
 		schemas.TaskTypePullRefMetrics:               c.TaskHandlerPullRefMetrics,
 		schemas.TaskTypePullRefsFromProject:          c.TaskHandlerPullRefsFromProject,
 		schemas.TaskTypePullRefsFromProjects:         c.TaskHandlerPullRefsFromProjects,
+		schemas.TaskTypePullRunnersMetrics:           c.TaskHandlerPullRunnerMetrics,
+		schemas.TaskTypePullRunnersFromProject:       c.TaskHandlerPullRunnersFromProject,
+		schemas.TaskTypePullRunnersFromProjects:      c.TaskHandlerPullRunnersFromProjects,
 	} {
 		_, _ = c.TaskController.TaskMap.Register(string(n), &taskq.TaskConfig{
 			Handler:    h,

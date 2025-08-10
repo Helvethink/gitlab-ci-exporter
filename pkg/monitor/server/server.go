@@ -134,6 +134,7 @@ func (s *Server) GetTelemetry(_ *pb.Empty, ts pb.Monitor_GetTelemetryServer) (er
 			Envs:     &pb.Entity{},
 			Refs:     &pb.Entity{},
 			Metrics:  &pb.Entity{},
+			Runners:  &pb.Entity{},
 		}
 
 		// Calculate GitLab API usage
@@ -182,6 +183,12 @@ func (s *Server) GetTelemetry(_ *pb.Empty, ts pb.Monitor_GetTelemetryServer) (er
 			return
 		}
 
+		// Get the count of runners
+		telemetry.Runners.Count, err = s.store.RunnersCount(ctx)
+		if err != nil {
+			return
+		}
+
 		// Get the count of refs
 		telemetry.Refs.Count, err = s.store.RefsCount(ctx)
 		if err != nil {
@@ -216,6 +223,18 @@ func (s *Server) GetTelemetry(_ *pb.Empty, ts pb.Monitor_GetTelemetryServer) (er
 		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectEnvironments]; ok {
 			telemetry.Envs.LastGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectEnvironments].Last)
 			telemetry.Envs.NextGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectEnvironments].Next)
+		}
+
+		// Set last and next pull times for Runners
+		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypePullRunnersFromProjects]; ok {
+			telemetry.Runners.LastPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullRunnersFromProjects].Last)
+			telemetry.Runners.NextPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullRunnersFromProjects].Next)
+		}
+
+		// Set last and next garbage collection times for Runners
+		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypePullRunnersFromProjects]; ok {
+			telemetry.Runners.LastGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectRunners].Last)
+			telemetry.Runners.NextGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectRunners].Next)
 		}
 
 		// Set last and next pull times for refs
