@@ -107,6 +107,9 @@ type ProjectPullRefsMergeRequests struct {
 	// No default is specified, so it must be explicitly set.
 	Enabled bool `yaml:"enabled"`
 
+	// Filter for MRs to include (by title).
+	Regexp string `default:".*" yaml:"regexp"`
+
 	// MostRecent limits export to only the N most recently updated merge requests.
 	// If zero, no limit is applied.
 	MostRecent uint `default:"0" yaml:"most_recent"`
@@ -114,6 +117,9 @@ type ProjectPullRefsMergeRequests struct {
 	// MaxAgeSeconds prevents exporting metrics for merge requests whose most recent pipeline
 	// update is older than this number of seconds. Zero means no age limit.
 	MaxAgeSeconds uint `default:"0" yaml:"max_age_seconds"`
+
+	// Prevent exporting metrics for MRs that are not opened.
+	ExcludeNonOpened bool `default:"false" yaml:"exclude_non_opened"`
 }
 
 // ProjectPullPipeline holds configuration related to pipelines.
