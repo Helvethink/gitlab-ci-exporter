@@ -308,7 +308,7 @@ func (c *Controller) GarbageCollectRunners(ctx context.Context) error {
 
 		// If the project no longer exists, delete the runner and continue to next
 		if !projectExists {
-			if err = deleteRunner(ctx, c.Store, runner, "non-existent-project"); err != nil {
+			if err = deleteRunner(ctx, c.Store, runner, "non-existent-runner"); err != nil {
 				return err
 			}
 			continue
@@ -419,7 +419,6 @@ func (c *Controller) GarbageCollectMetrics(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("Stored Runners Metrics:", storedRunners)
 
 	storedRefs, err := c.Store.Refs(ctx)
 	if err != nil {
@@ -437,21 +436,18 @@ func (c *Controller) GarbageCollectMetrics(ctx context.Context) error {
 		metricLabelRef, metricLabelRefExists := m.Labels["ref"]
 		metricLabelEnvironment, metricLabelEnvironmentExists := m.Labels["environment"]
 		metricLabelRunner, metricLabelRunnerExists := m.Labels["runner_id"]
-		fmt.Printf("Delete metrics => MetricLabelRunner exists: %v and MetricsLabelRunner: %v\n", metricLabelRunnerExists, metricLabelRunner)
 
 		// Delete metrics missing the "project" label or both "ref" and "environment" labels.
-		if !metricLabelRunnerExists {
-			if !metricLabelProjectExists || (!metricLabelRefExists && !metricLabelEnvironmentExists) {
-				if err = c.Store.DelMetric(ctx, k); err != nil {
-					return err
-				}
-
-				log.WithFields(log.Fields{
-					"metric-kind":   m.Kind,
-					"metric-labels": m.Labels,
-					"reason":        "project-or-ref-and-environment-label-undefined",
-				}).Info("deleted metric from the store")
+		if !metricLabelRunnerExists && (!metricLabelProjectExists || (!metricLabelRefExists && !metricLabelEnvironmentExists)) {
+			if err = c.Store.DelMetric(ctx, k); err != nil {
+				return err
 			}
+
+			log.WithFields(log.Fields{
+				"metric-kind":   m.Kind,
+				"metric-labels": m.Labels,
+				"reason":        "project-or-ref-and-environment-label-undefined",
+			}).Info("deleted metric from the store")
 		}
 
 		// Handle metrics related to a Ref (no environment label).
@@ -534,6 +530,7 @@ func (c *Controller) GarbageCollectMetrics(ctx context.Context) error {
 			}.Key()
 
 			runner, runnerExists := storedRunners[runnerKey]
+			fmt.Println("Stored Runners and runner exists: ", storedRunners[runnerKey], runnerExists)
 
 			// Delete the metric if the runner no longer exists
 			if !runnerExists {

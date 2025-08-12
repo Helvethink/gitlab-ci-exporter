@@ -31,12 +31,12 @@ type Store interface {
 	EnvironmentsCount(ctx context.Context) (int64, error)                           // EnvironmentsCount Counts the number of environments
 
 	// Methods for manipulating runners
-	SetRunner(ctx context.Context, r schemas.Runner) error                // SetRunner Stores an environment
-	DelRunner(ctx context.Context, rk schemas.RunnerKey) error            // DelRunner Deletes an environment
-	GetRunner(ctx context.Context, r *schemas.Runner) error               // GetRunner Retrieves an environment
+	SetRunner(ctx context.Context, r schemas.Runner) error                // SetRunner Stores a runner
+	DelRunner(ctx context.Context, rk schemas.RunnerKey) error            // DelRunner Deletes a runner
+	GetRunner(ctx context.Context, r *schemas.Runner) error               // GetRunner Retrieves a runner
 	RunnerExists(ctx context.Context, rk schemas.RunnerKey) (bool, error) // RunnerExists Checks the existence of an environment
-	Runners(ctx context.Context) (schemas.Runners, error)                 // Environments Retrieves all environments
-	RunnersCount(ctx context.Context) (int64, error)                      // RunnersCount Counts the number of environments
+	Runners(ctx context.Context) (schemas.Runners, error)                 // Runners Retrieves all runners
+	RunnersCount(ctx context.Context) (int64, error)                      // RunnersCount Counts the number of runners
 
 	// Methods for manipulating references
 	SetRef(ctx context.Context, r schemas.Ref) error                // SetRef Stores a reference

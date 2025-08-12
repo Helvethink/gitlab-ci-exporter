@@ -384,11 +384,20 @@ func (c *Controller) TaskHandlerPullMetrics(ctx context.Context) {
 			Error("error counting environments in the store")
 	}
 
+	// Count runners for logging
+	runnersCount, err := c.Store.RunnersCount(ctx)
+	if err != nil {
+		log.WithContext(ctx).
+			WithError(err).
+			Error("error counting runners in the store")
+	}
+
 	// Log counts before scheduling tasks
 	log.WithFields(
 		log.Fields{
 			"environments-count": envsCount,
 			"refs-count":         refsCount,
+			"runners-count":      runnersCount,
 		},
 	).Info("scheduling metrics pull")
 
@@ -403,6 +412,19 @@ func (c *Controller) TaskHandlerPullMetrics(ctx context.Context) {
 	// Schedule a metrics pull task for each environment
 	for _, env := range envs {
 		c.ScheduleTask(ctx, schemas.TaskTypePullEnvironmentMetrics, string(env.Key()), env)
+	}
+
+	// Fetch all runners from the store
+	runners, err := c.Store.Runners(ctx)
+	if err != nil {
+		log.WithContext(ctx).
+			WithError(err).
+			Error("error retrieving runners from the store")
+	}
+
+	// Schedule a metrics pull task for each runner
+	for _, r := range runners {
+		c.ScheduleTask(ctx, schemas.TaskTypePullRunnersMetrics, string(r.Key()), r)
 	}
 
 	// Fetch all refs from the store
@@ -529,7 +551,7 @@ func (c *Controller) Schedule(ctx context.Context, pull config.Pull, gc config.G
 // of the process is alive and actively processing tasks.
 //
 // It starts a new goroutine that:
-//   - Creates a ticker firing every 1 seconds.
+//   - Creates a ticker firing every 1 second.
 //   - On each tick, it calls SetKeepalive on the Redis store to update the key with
 //     a 10-second expiration, effectively refreshing the liveness indicator.
 //   - If the context is canceled, the goroutine logs and exits cleanly.

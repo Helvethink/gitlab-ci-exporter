@@ -48,7 +48,7 @@ type Runners map[RunnerKey]Runner
 // Key generates a unique key for a Runner using a CRC32 checksum of the project name and runner name.
 func (r Runner) Key() RunnerKey {
 	// Generate a unique key using the CRC32 checksum of the project name and runner description
-	return RunnerKey(strconv.Itoa(int(crc32.ChecksumIEEE([]byte(strconv.Itoa(r.ID) + r.ProjectName)))))
+	return RunnerKey(strconv.Itoa(int(crc32.ChecksumIEEE([]byte(strconv.Itoa(r.ID))))))
 }
 
 // Count returns the number of environments in the Environments map.

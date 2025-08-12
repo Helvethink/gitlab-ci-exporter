@@ -2,12 +2,13 @@ package gitlab
 
 import (
 	"context"
+	"regexp"
+
 	"github.com/helvethink/gitlab-ci-exporter/pkg/schemas"
 	log "github.com/sirupsen/logrus"
 	goGitlab "gitlab.com/gitlab-org/api/client-go"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"regexp"
 )
 
 /**
@@ -26,7 +27,7 @@ func (c *Client) GetProjectRunners(ctx context.Context, p schemas.Project) (runn
 	ctx, span := otel.Tracer(tracerName).Start(ctx, "gitlab:GetProjectRunners")
 	defer span.End()
 
-	// TODO: Add tracing attributes for Runners
+	// Add Tracing for this call
 	span.SetAttributes(attribute.String("project_name", p.Name))
 
 	runners = make(schemas.Runners)

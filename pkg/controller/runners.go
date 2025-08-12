@@ -2,10 +2,12 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strconv"
+
 	"github.com/helvethink/gitlab-ci-exporter/pkg/schemas"
 	log "github.com/sirupsen/logrus"
-	"strconv"
 )
 
 // PullRunnersFromProject fetches the list of runners for a given project from the GitLab API,
@@ -84,17 +86,28 @@ func (c *Controller) ProcessRunnerMetrics(ctx context.Context, runner schemas.Ru
 	}
 
 	// Initialize labels from the reference default labels and add job-specific labels
+	groups := runner.Groups
+	GroupsOut, err := json.Marshal(groups)
+	if err != nil {
+		return nil
+	}
+	projects := runner.Projects
+	projectsOut, err := json.Marshal(projects)
+	if err != nil {
+		return nil
+	}
+
 	labels := runner.DefaultLabelsValues()
 	labels["runner_name"] = runner.Name
 	labels["runner_id"] = strconv.Itoa(runner.ID)             // The unique identifier for the environment
 	labels["is_shared"] = strconv.FormatBool(runner.IsShared) // The kind of the latest deployment's reference
 	labels["runner_type"] = runner.RunnerType                 // The name of the latest deployment's reference
-	labels["runner_projects"] = fmt.Sprint(runner.Projects)   // The projects assigned to this runner
+	labels["runner_projects"] = string(projectsOut)           // The projects assigned to this runner
 	labels["online"] = strconv.FormatBool(runner.Online)      // The short ID of the current commit
 	labels["tag_list"] = fmt.Sprint(runner.TagList)           // Placeholder for the latest commit short ID (empty in this context)
 	labels["active"] = strconv.FormatBool(runner.Paused)      // The availability status of the environment
 	labels["status"] = runner.Status                          // The status of the runner
-	labels["runner_groups"] = fmt.Sprint(runner.Groups)       // The groups assigned to this runner
+	labels["runner_groups"] = string(GroupsOut)               // The groups assigned to this runner
 
 	// Log trace info indicating that job metrics are being processed
 	log.WithFields(projectRefLogFields).Trace("processing runner metrics")

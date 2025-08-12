@@ -93,7 +93,7 @@ type Gitlab struct {
 	Token                      string `validate:"required" yaml:"token"`                                  // Token is the authentication token used to access the GitLab API.
 	EnableHealthCheck          bool   `default:"true" yaml:"enable_health_check"`                         // EnableHealthCheck toggles periodic health checks by requesting the HealthURL.
 	EnableTLSVerify            bool   `default:"true" yaml:"enable_tls_verify"`                           // EnableTLSVerify toggles TLS certificate verification for HTTPS connections to the HealthURL.
-	MaximumRequestsPerSecond   int    `default:"1" validate:"gte=1" yaml:"maximum_requests_per_second"`   // MaximumRequestsPerSecond limits the maximum number of GitLab API requests per second.
+	MaximumRequestsPerSecond   int    `default:"5" validate:"gte=1" yaml:"maximum_requests_per_second"`   // MaximumRequestsPerSecond limits the maximum number of GitLab API requests per second.
 	BurstableRequestsPerSecond int    `default:"5" validate:"gte=1" yaml:"burstable_requests_per_second"` // BurstableRequestsPerSecond allows short bursts above the normal max request rate.
 
 	// MaximumJobsQueueSize limits the number of jobs queued internally before dropping new ones.
@@ -129,7 +129,7 @@ type Pull struct {
 		IntervalSeconds int  `default:"1800" validate:"gte=1" yaml:"interval_seconds"` // IntervalSeconds defines the interval in seconds between scheduled fetches.
 	} `yaml:"environments_from_projects"`
 
-	// RunnersFromProjects TODO
+	// RunnersFromProjects configures the fetching of runners associated with projects.
 	RunnersFromProjects struct {
 		OnInit          bool `default:"true" yaml:"on_init"`
 		Scheduled       bool `default:"true" yaml:"scheduled"`
@@ -167,7 +167,7 @@ type GarbageCollect struct {
 		IntervalSeconds int  `default:"14400" validate:"gte=1" yaml:"interval_seconds"` // 4 hours
 	} `yaml:"environments"`
 
-	// Runners TODO
+	// Runners configures cleanup behavior related to runners.
 	Runners struct {
 		OnInit          bool `default:"false" yaml:"on_init"`
 		Scheduled       bool `default:"true" yaml:"scheduled"`
