@@ -2,7 +2,8 @@
 
 [![PkgGoDev](https://pkg.go.dev/badge/github.com/Helvethink/gitlab-ci-exporter)](https://pkg.go.dev/mod/github.com/Helvethink/gitlab-ci-exporter)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Helvethink/gitlab-ci-exporter)](https://goreportcard.com/report/github.com/Helvethink/gitlab-ci-exporter)
-[![Docker Pulls](https://badgen.net/#docker/pulls/helvethink/gitlab-ci-exporter)](https://hub.docker.com/r/helvethink/gitlab-ci-exporter/)
+[![Docker Pulls](https://badgen.net/docker/pulls/helvethink/gitlab-ci-exporter?icon=docker&label=pulls)](https://hub.docker.com/r/helvethink/gitlab-ci-exporter/)
+[![Docker Stars](https://badgen.net/docker/stars/helvethink/gitlab-ci-exporter?icon=docker&label=stars)](https://hub.docker.com/r/helvethink/gitlab-ci-exporter/)
 [![test](https://github.com/Helvethink/gitlab-ci-exporter/actions/workflows/go-test.yml/badge.svg)](https://github.com/Helvethink/gitlab-ci-exporter/actions/workflows/go-test.yml)
 [![Coverage Status](https://coveralls.io/repos/github/Helvethink/gitlab-ci-exporter/badge.svg?branch=main)](https://coveralls.io/github/Helvethink/gitlab-ci-exporter?branch=main)
 [![release](https://github.com/Helvethink/gitlab-ci-exporter/actions/workflows/release.yml/badge.svg)](https://github.com/Helvethink/gitlab-ci-exporter/actions/workflows/release.yml)
@@ -10,7 +11,7 @@
 
 ## Introduction
 
-TBC...
+This exporter gathers various GitLab CI metrics and exposes them in a Prometheus-compatible format, enabling comprehensive monitoring of your CI pipelines.
 
 ## How to
 
