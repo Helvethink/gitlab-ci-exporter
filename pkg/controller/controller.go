@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/redis/go-redis/extra/redisotel/v9"
@@ -168,7 +169,7 @@ func configureTracing(ctx context.Context, grpcEndpoint string) error {
 		resource.WithTelemetrySDK(),
 		resource.WithHost(),
 		resource.WithAttributes(
-			semconv.ServiceNameKey.String("gitlab-ci-pipelines-exporter"),
+			semconv.ServiceNameKey.String("gitlab-ci-exporter"),
 		),
 	)
 	if err != nil {

@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"regexp"
 
@@ -522,7 +521,7 @@ func (c *Controller) GarbageCollectMetrics(ctx context.Context) error {
 			}
 		}
 
-		// Handle metrics related to a Runner.
+		// TODO: => Improve this - Handle metrics related to a Runner.
 		if metricLabelRunnerExists {
 			runnerKey := schemas.Runner{
 				ProjectName: metricLabelProject,
@@ -530,7 +529,7 @@ func (c *Controller) GarbageCollectMetrics(ctx context.Context) error {
 			}.Key()
 
 			runner, runnerExists := storedRunners[runnerKey]
-			fmt.Println("Stored Runners and runner exists: ", storedRunners[runnerKey], runnerExists)
+			// fmt.Println("Stored Runners and runner exists: ", storedRunners[runnerKey], runnerExists)
 
 			// Delete the metric if the runner no longer exists
 			if !runnerExists {

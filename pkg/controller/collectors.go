@@ -45,7 +45,7 @@ var (
 	// runnerLabels defines labels for metrics related to runner deploy.
 	runnerLabels = []string{
 		"project", "runner_description", "runner_name", "runner_id", "is_shared", "runner_type", "runner_projects",
-		"online", "tag_list", "active", "status", "runner_groups",
+		"online", "tag_list", "active", "status", "runner_groups", "runner_maintenance_note", "contacted_at", "paused",
 	}
 )
 
@@ -565,7 +565,7 @@ func NewCollectorRunCount() prometheus.Collector {
 func NewCollectorRunners() prometheus.Collector {
 	return prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "gitlab_ci_runners",
+			Name: "gitlab_ci_runners_info",
 			Help: "Status of your runners",
 		},
 		runnerLabels,
