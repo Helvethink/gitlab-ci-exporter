@@ -136,14 +136,14 @@ func (c *Controller) unqueueTask(ctx context.Context, tt schemas.TaskType, uniqu
 func configureTracing(ctx context.Context, grpcEndpoint string) error {
 	// If no gRPC endpoint is specified, log that tracing will be skipped and return nil
 	if len(grpcEndpoint) == 0 {
-		log.Debug("opentelemetry.grpc_endpoint is not configured, skipping open telemetry support")
+		log.Debug("open-telemetry.grpc_endpoint is not configured, skipping open telemetry support")
 		return nil
 	}
 
 	// Log that a gRPC endpoint is configured and tracing initialization is starting
 	log.WithFields(log.Fields{
-		"opentelemetry_grpc_endpoint": grpcEndpoint,
-	}).Info("opentelemetry gRPC endpoint provided, initializing connection..")
+		"open-telemetry_grpc_endpoint": grpcEndpoint,
+	}).Info("open-telemetry gRPC endpoint provided, initializing connection..")
 
 	// Create a new OpenTelemetry gRPC trace client with insecure connection, connecting to the given endpoint,
 	// and block until the connection is established
