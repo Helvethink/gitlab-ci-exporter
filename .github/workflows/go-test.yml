@@ -31,5 +31,5 @@ jobs:
       - name: Coverage
         run:  make coverage
 
-     - name: Coveralls GitHub Action
-       uses: coverallsapp/github-action@v2.3.6
+      #- name: Coveralls GitHub Action
+      #  uses: coverallsapp/github-action@v2.3.6
