@@ -432,22 +432,26 @@ func (c *Controller) GarbageCollectMetrics(ctx context.Context) error {
 	}
 
 	for k, m := range storedMetrics {
-		// Retrieve metric labels needed to identify the owning project, ref, or environment.
+		// Retrieve metric labels needed to identify the owning project, ref, runner, or environment.
 		metricLabelProject, metricLabelProjectExists := m.Labels["project"]
 		metricLabelRef, metricLabelRefExists := m.Labels["ref"]
 		metricLabelEnvironment, metricLabelEnvironmentExists := m.Labels["environment"]
+		metricLabelRunner, metricLabelRunnerExists := m.Labels["runner_id"]
+		fmt.Printf("Delete metrics => MetricLabelRunner exists: %v and MetricsLabelRunner: %v\n", metricLabelRunnerExists, metricLabelRunner)
 
 		// Delete metrics missing the "project" label or both "ref" and "environment" labels.
-		if !metricLabelProjectExists || (!metricLabelRefExists && !metricLabelEnvironmentExists) {
-			if err = c.Store.DelMetric(ctx, k); err != nil {
-				return err
-			}
+		if !metricLabelRunnerExists {
+			if !metricLabelProjectExists || (!metricLabelRefExists && !metricLabelEnvironmentExists) {
+				if err = c.Store.DelMetric(ctx, k); err != nil {
+					return err
+				}
 
-			log.WithFields(log.Fields{
-				"metric-kind":   m.Kind,
-				"metric-labels": m.Labels,
-				"reason":        "project-or-ref-and-environment-label-undefined",
-			}).Info("deleted metric from the store")
+				log.WithFields(log.Fields{
+					"metric-kind":   m.Kind,
+					"metric-labels": m.Labels,
+					"reason":        "project-or-ref-and-environment-label-undefined",
+				}).Info("deleted metric from the store")
+			}
 		}
 
 		// Handle metrics related to a Ref (no environment label).
@@ -521,12 +525,50 @@ func (c *Controller) GarbageCollectMetrics(ctx context.Context) error {
 				// no action for other kinds here
 			}
 		}
-		// TODO: Handle metrics related to Runner
-		/**
-		switch m.Kind {
-				case schemas.MetricKindRunner
+
+		// Handle metrics related to a Runner.
+		if metricLabelRunnerExists {
+			runnerKey := schemas.Runner{
+				ProjectName: metricLabelProject,
+				Name:        metricLabelRunner,
+			}.Key()
+
+			runner, runnerExists := storedRunners[runnerKey]
+
+			// Delete the metric if the runner no longer exists
+			if !runnerExists {
+				if err = c.Store.DelMetric(ctx, k); err != nil {
+					return err
+				}
+
+				log.WithFields(log.Fields{
+					"metric-kind":   m.Kind,
+					"metric-labels": m.Labels,
+					"reason":        "non-existent-runner",
+				}).Info("deleted metric from the store")
+
+				continue
+			}
+
+			switch m.Kind {
+			case schemas.MetricKindRunner:
+				if runner.OutputSparseStatusMetrics && m.Value != 1 {
+					if err = c.Store.DelMetric(ctx, k); err != nil {
+						return err
+					}
+
+					log.WithFields(log.Fields{
+						"metric-kind":   m.Kind,
+						"metric-labels": m.Labels,
+						"reason":        "output-sparse-metrics-enabled-on-runner",
+					}).Info("deleted metric from the store")
+
+					continue
+				}
+			default:
+				// Nothing to do
+			}
 		}
-		*/
 
 		// Handle metrics related to an Environment.
 		if metricLabelEnvironmentExists {
@@ -568,6 +610,8 @@ func (c *Controller) GarbageCollectMetrics(ctx context.Context) error {
 
 					continue
 				}
+			default:
+				// Nothing to do by default
 			}
 		}
 	}

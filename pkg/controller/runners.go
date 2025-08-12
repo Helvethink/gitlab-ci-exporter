@@ -71,11 +71,6 @@ func (c *Controller) UpdateRunner(ctx context.Context, runner *schemas.Runner) e
 	runner.MaintenanceNote = pulledRunner.MaintenanceNote
 
 	// Save the updated runner back to the store
-	err = c.ProcessRunnerMetrics(ctx, *runner)
-	if err != nil {
-		return err
-	}
-
 	return c.Store.SetRunner(ctx, *runner)
 }
 
@@ -110,6 +105,6 @@ func (c *Controller) ProcessRunnerMetrics(ctx context.Context, runner schemas.Ru
 		Labels: labels,
 		Value:  1,
 	})
-	
+
 	return nil
 }

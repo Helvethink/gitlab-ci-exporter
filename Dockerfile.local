@@ -21,5 +21,5 @@ COPY --from=builder /out/${PROJECT_NAME} /usr/local/bin/${PROJECT_NAME}
 USER 33092
 EXPOSE 8080
 
-ENTRYPOINT ["/gitlab-ci-exporter"]
+ENTRYPOINT ["/usr/local/bin/gitlab-ci-exporter"]
 CMD ["run"]
