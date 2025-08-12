@@ -18,6 +18,7 @@ func TestNewLocalStore(t *testing.T) {
 		projects:          make(schemas.Projects),
 		environments:      make(schemas.Environments),
 		refs:              make(schemas.Refs),
+		runners:           make(schemas.Runners),
 		metrics:           make(schemas.Metrics),
 		pipelines:         make(schemas.Pipelines),
 		pipelineVariables: make(map[schemas.PipelineKey]string),
