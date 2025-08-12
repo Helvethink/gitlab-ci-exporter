@@ -34,6 +34,15 @@ const (
 	// TaskTypePullRefMetrics represents a task type for pulling metrics from references.
 	TaskTypePullRefMetrics TaskType = "PullRefMetrics"
 
+	// TaskTypePullRunnersFromProject represents a task type for pulling runners from a single project.
+	TaskTypePullRunnersFromProject TaskType = "PullRunnerFromProject"
+
+	// TaskTypePullRunnersFromProjects represents a task type for pulling runner from multiple projects.
+	TaskTypePullRunnersFromProjects TaskType = "PullRunnersFromProjects"
+
+	// TaskTypePullRunnersMetrics represents a task type for pulling metrics from runners.
+	TaskTypePullRunnersMetrics TaskType = "PullRunnersMetrics"
+
 	// TaskTypeGarbageCollectProjects represents a task type for garbage collecting projects.
 	TaskTypeGarbageCollectProjects TaskType = "GarbageCollectProjects"
 
@@ -46,10 +55,7 @@ const (
 	// TaskTypeGarbageCollectMetrics represents a task type for garbage collecting metrics.
 	TaskTypeGarbageCollectMetrics TaskType = "GarbageCollectMetrics"
 
-	TaskTypePullRunnersMetrics      TaskType = "PullRunnersMetrics"
-	TaskTypePullRunnersFromProjects TaskType = "PullRunnersFromProjects"
-	TaskTypePullRunnersFromProject  TaskType = "PullRunnerFromProject"
-
+	// TaskTypeGarbageCollectRunners represents a task type for garbage collecting runners.
 	TaskTypeGarbageCollectRunners TaskType = "GarbageCollectRunners"
 )
 

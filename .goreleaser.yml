@@ -64,6 +64,9 @@ dockers:
       - 'docker.io/helvethink/gitlab-ci-exporter:{{ .Tag }}'
       - 'ghcr.io/helvethink/gitlab-ci-exporter:{{ .Tag }}'
       - 'quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}'
+      - 'docker.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-amd64'
+      - 'ghcr.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-amd64'
+      - 'quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-amd64'
       - 'docker.io/helvethink/gitlab-ci-exporter:latest'
       - 'ghcr.io/helvethink/gitlab-ci-exporter:latest'
       - 'quay.io/helvethink/gitlab-ci-exporter:latest'
@@ -144,6 +147,7 @@ dockers:
 docker_manifests:
   - name_template: docker.io/helvethink/gitlab-ci-exporter:{{ .Tag }}
     image_templates:
+      - docker.io/helvethink/gitlab-ci-exporter:{{ .Tag }}
       - docker.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-amd64
       - docker.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-arm64
       - docker.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-armv6
@@ -151,6 +155,7 @@ docker_manifests:
 
   - name_template: ghcr.io/helvethink/gitlab-ci-exporter:{{ .Tag }}
     image_templates:
+      - ghcr.io/helvethink/gitlab-ci-exporter:{{ .Tag }}
       - ghcr.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-amd64
       - ghcr.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-arm64
       - ghcr.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-armv6
@@ -158,6 +163,7 @@ docker_manifests:
 
   - name_template: quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}
     image_templates:
+      - quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}
       - quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-amd64
       - quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-arm64
       - quay.io/helvethink/gitlab-ci-exporter:{{ .Tag }}-armv6

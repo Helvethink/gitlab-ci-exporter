@@ -2,12 +2,13 @@ package gitlab
 
 import (
 	"context"
+	"regexp"
+
 	"github.com/helvethink/gitlab-ci-exporter/pkg/schemas"
 	log "github.com/sirupsen/logrus"
 	goGitlab "gitlab.com/gitlab-org/api/client-go"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"regexp"
 )
 
 /**
@@ -26,7 +27,7 @@ func (c *Client) GetProjectRunners(ctx context.Context, p schemas.Project) (runn
 	ctx, span := otel.Tracer(tracerName).Start(ctx, "gitlab:GetProjectRunners")
 	defer span.End()
 
-	// TODO: Add tracing attributes for Runners
+	// Add Tracing for this call
 	span.SetAttributes(attribute.String("project_name", p.Name))
 
 	runners = make(schemas.Runners)
@@ -175,7 +176,40 @@ func (c *Client) GetRunner(ctx context.Context, project string, runnerID int) (r
 	runner.Locked = r.Locked
 	runner.AccessLevel = r.AccessLevel
 	runner.MaximumTimeout = r.MaximumTimeout
-
-	// Return the populated Environment struct and nil error
+	runner.Groups = []struct {
+		ID     int
+		Name   string
+		WebURL string
+	}(r.Groups)
+	runner.Projects = []struct {
+		ID                int
+		Name              string
+		NameWithNamespace string
+		Path              string
+		PathWithNamespace string
+	}(r.Projects)
+	/*
+		fmt.Printf("===============\nRunner infos:\n"+
+			"Runner Paused:%v\n"+
+			"Runner Desc:%v\n"+
+			"RunnerIsShared:%v\n"+
+			"RunnerType:%v\n"+
+			"RunnerContact:%v\n"+
+			"RunnerMaintenance:%v\n"+
+			"RunnerName:%v\n"+
+			"RunnerOnline:%v\n"+
+			"Runner Status:%v\n"+
+			"Runner Token:%v\n"+
+			"Runner TagList:%v\n"+
+			"Runner Untagged:%v\n"+
+			"RunnerLocked:%v\n"+
+			"RunnerAccessLevel:%v\n"+
+			"RunnerMaxTimeout:%v\n"+
+			"Runner Groups:%v\n"+
+			"Runner Projects:%v\n"+
+			"=====================\n",
+			r.Paused, r.Description, r.IsShared, r.RunnerType, r.ContactedAt, r.MaintenanceNote, r.Name, r.Online, r.Status, r.Token, r.TagList, r.RunUntagged, r.Locked, r.AccessLevel, r.MaximumTimeout, r.Groups, r.Projects)
+	*/
+	// Return the populated Runner struct and nil error
 	return
 }

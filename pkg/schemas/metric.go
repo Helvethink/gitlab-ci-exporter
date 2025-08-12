@@ -206,6 +206,9 @@ func (m Metric) Key() MetricKey {
 			m.Labels["runner_description"],
 			m.Labels["runner_groups"],
 			m.Labels["runner_projects"],
+			m.Labels["runner_maintenance_note"],
+			m.Labels["contacted_at"],
+			m.Labels["paused"],
 			m.Labels["runner_type"],
 			m.Labels["tag_list"],
 			m.Labels["is_shared"],
@@ -217,6 +220,8 @@ func (m Metric) Key() MetricKey {
 	switch m.Kind {
 	case MetricKindJobStatus, MetricKindEnvironmentDeploymentStatus, MetricKindStatus, MetricKindTestCaseStatus:
 		key += m.Labels["status"]
+	default:
+		// nothing to do
 	}
 
 	// Generate a unique key using the CRC32 checksum of the constructed key string

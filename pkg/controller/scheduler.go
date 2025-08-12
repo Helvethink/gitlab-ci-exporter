@@ -159,24 +159,24 @@ func (c *Controller) TaskHandlerPullEnvironmentMetrics(ctx context.Context, env 
 	}
 }
 
-// TaskHandlerPullRunnerMetrics TODO
+// TaskHandlerPullRunnerMetrics handles the task of pulling metrics
+// for a specific runner. It ensures the task is unqueued after processing,
+// and logs any errors encountered without retrying the task.
 func (c *Controller) TaskHandlerPullRunnerMetrics(ctx context.Context, runner schemas.Runner) {
 	// Ensure the task is removed from the queue when this function exits
 	defer c.unqueueTask(ctx, schemas.TaskTypePullRunnersMetrics, string(runner.Key()))
 
 	// Attempt to pull runner metrics, log warning on failure but do not retry
-	/*
-		if err := c.PullRunnerMetrics(ctx, runner); err != nil {
-			log.WithContext(ctx).
-				WithFields(log.Fields{
-					"project-name": runner.ProjectName,
-					"runner-name":  runner.Name,
-					"runner-id":    runner.ID,
-				}).
-				WithError(err).
-				Warn("pulling runner metrics")
-		}
-	*/
+	if err := c.ProcessRunnerMetrics(ctx, runner); err != nil {
+		log.WithContext(ctx).
+			WithFields(log.Fields{
+				"project-name": runner.ProjectName,
+				"runner-name":  runner.Name,
+				"runner-id":    runner.ID,
+			}).
+			WithError(err).
+			Warn("pulling runner metrics")
+	}
 }
 
 // TaskHandlerPullRefsFromProject handles the task of pulling refs (branches, tags, etc.)
@@ -384,11 +384,20 @@ func (c *Controller) TaskHandlerPullMetrics(ctx context.Context) {
 			Error("error counting environments in the store")
 	}
 
+	// Count runners for logging
+	runnersCount, err := c.Store.RunnersCount(ctx)
+	if err != nil {
+		log.WithContext(ctx).
+			WithError(err).
+			Error("error counting runners in the store")
+	}
+
 	// Log counts before scheduling tasks
 	log.WithFields(
 		log.Fields{
 			"environments-count": envsCount,
 			"refs-count":         refsCount,
+			"runners-count":      runnersCount,
 		},
 	).Info("scheduling metrics pull")
 
@@ -403,6 +412,19 @@ func (c *Controller) TaskHandlerPullMetrics(ctx context.Context) {
 	// Schedule a metrics pull task for each environment
 	for _, env := range envs {
 		c.ScheduleTask(ctx, schemas.TaskTypePullEnvironmentMetrics, string(env.Key()), env)
+	}
+
+	// Fetch all runners from the store
+	runners, err := c.Store.Runners(ctx)
+	if err != nil {
+		log.WithContext(ctx).
+			WithError(err).
+			Error("error retrieving runners from the store")
+	}
+
+	// Schedule a metrics pull task for each runner
+	for _, r := range runners {
+		c.ScheduleTask(ctx, schemas.TaskTypePullRunnersMetrics, string(r.Key()), r)
 	}
 
 	// Fetch all refs from the store
@@ -459,7 +481,9 @@ func (c *Controller) TaskHandlerGarbageCollectMetrics(ctx context.Context) error
 	return c.GarbageCollectMetrics(ctx)
 }
 
-// TaskHandlerGarbageCollectRunners TODO
+// TaskHandlerGarbageCollectRunners handles the task of garbage collecting unused or obsolete environments.
+// It ensures the task is properly unqueued and updates task scheduling monitoring.
+// Returns an error if the garbage collection fails.
 func (c *Controller) TaskHandlerGarbageCollectRunners(ctx context.Context) error {
 	defer c.unqueueTask(ctx, schemas.TaskTypeGarbageCollectRunners, "_")
 	defer c.TaskController.monitorLastTaskScheduling(schemas.TaskTypeGarbageCollectRunners)
@@ -527,7 +551,7 @@ func (c *Controller) Schedule(ctx context.Context, pull config.Pull, gc config.G
 // of the process is alive and actively processing tasks.
 //
 // It starts a new goroutine that:
-//   - Creates a ticker firing every 1 seconds.
+//   - Creates a ticker firing every 1 second.
 //   - On each tick, it calls SetKeepalive on the Redis store to update the key with
 //     a 10-second expiration, effectively refreshing the liveness indicator.
 //   - If the context is canceled, the goroutine logs and exits cleanly.
