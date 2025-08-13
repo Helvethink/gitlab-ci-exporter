@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	mergeRequestRegexp string = `^((\d+)|refs/merge-requests/(\d+)/head)$` // Regex pattern for matching merge request references
+	mergeRequestRegexp string = `^((\d+)|refs/merge-requests/(\d+)/(?:head|merge))$` // Regex pattern for matching merge request references
 
 	// RefKindBranch refers to a branch reference kind.
 	RefKindBranch RefKind = "branch"
@@ -22,7 +22,7 @@ const (
 	RefKindMergeRequest RefKind = "merge-request"
 )
 
-// RefKind is a custom type used to determine the kind of a reference.
+// RefKind is a custom type used to determine the kind of reference.
 type RefKind string
 
 // Ref represents a reference entity on which metrics operations will be performed.

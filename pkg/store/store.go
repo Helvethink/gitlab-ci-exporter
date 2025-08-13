@@ -21,6 +21,7 @@ type Store interface {
 	ProjectExists(ctx context.Context, pk schemas.ProjectKey) (bool, error) // ProjectExists Checks the existence of a project
 	Projects(ctx context.Context) (schemas.Projects, error)                 // Projects Retrieves all projects
 	ProjectsCount(ctx context.Context) (int64, error)                       // ProjectsCount Counts the number of projects
+	HasProjectExpired(ctx context.Context, key schemas.ProjectKey) bool
 
 	// Methods for manipulating environments
 	SetEnvironment(ctx context.Context, e schemas.Environment) error                // SetEnvironment Stores an environment
@@ -29,6 +30,7 @@ type Store interface {
 	EnvironmentExists(ctx context.Context, ek schemas.EnvironmentKey) (bool, error) // EnvironmentExists Checks the existence of an environment
 	Environments(ctx context.Context) (schemas.Environments, error)                 // Environments Retrieves all environments
 	EnvironmentsCount(ctx context.Context) (int64, error)                           // EnvironmentsCount Counts the number of environments
+	HasEnvExpired(ctx context.Context, key schemas.EnvironmentKey) bool
 
 	// Methods for manipulating runners
 	SetRunner(ctx context.Context, r schemas.Runner) error                // SetRunner Stores a runner
@@ -37,6 +39,7 @@ type Store interface {
 	RunnerExists(ctx context.Context, rk schemas.RunnerKey) (bool, error) // RunnerExists Checks the existence of an environment
 	Runners(ctx context.Context) (schemas.Runners, error)                 // Runners Retrieves all runners
 	RunnersCount(ctx context.Context) (int64, error)                      // RunnersCount Counts the number of runners
+	HasRunnerExpired(ctx context.Context, key schemas.RunnerKey) bool
 
 	// Methods for manipulating references
 	SetRef(ctx context.Context, r schemas.Ref) error                // SetRef Stores a reference
@@ -45,6 +48,7 @@ type Store interface {
 	RefExists(ctx context.Context, rk schemas.RefKey) (bool, error) // RefExists Checks the existence of a reference
 	Refs(ctx context.Context) (schemas.Refs, error)                 // Refs Retrieves all references
 	RefsCount(ctx context.Context) (int64, error)                   // RefsCount Counts the number of references
+	HasRefExpired(ctx context.Context, key schemas.RefKey) bool
 
 	// Methods for manipulating metrics
 	SetMetric(ctx context.Context, m schemas.Metric) error                // SetMetric Stores a metric
@@ -53,6 +57,7 @@ type Store interface {
 	MetricExists(ctx context.Context, mk schemas.MetricKey) (bool, error) // MetricExists Checks the existence of a metric
 	Metrics(ctx context.Context) (schemas.Metrics, error)                 // Metrics Retrieves all metrics
 	MetricsCount(ctx context.Context) (int64, error)                      // MetricsCount Counts the number of metrics
+	HasMetricExpired(ctx context.Context, key schemas.MetricKey) bool
 
 	// Methods for manipulating Pipelines
 	SetPipeline(ctx context.Context, pipeline schemas.Pipeline) error                            // SetPipeline sets a pipeline in the storage.
@@ -65,9 +70,9 @@ type Store interface {
 	// Helpers to keep track of currently queued tasks and avoid scheduling them
 	// twice at the risk of ending up with loads of dangling goroutines being locked
 	QueueTask(ctx context.Context, tt schemas.TaskType, taskUUID, processUUID string) (bool, error) // QueueTask Adds a task to the queue
-	UnqueueTask(ctx context.Context, tt schemas.TaskType, taskUUID string) error                    // UnqueueTask Removes a task from the queue
+	DequeueTask(ctx context.Context, tt schemas.TaskType, taskUUID string) error                    // DequeueTask Removes a task from the queue
 	CurrentlyQueuedTasksCount(ctx context.Context) (uint64, error)                                  // CurrentlyQueuedTasksCount Counts the number of currently queued tasks
-	ExecutedTasksCount(ctx context.Context) (uint64, error)                                         // ExecutedTasksCount Counts the number of executed tasks
+	ExecutedTasksCount(ctx context.Context) (uint64, error)
 }
 
 // NewLocalStore creates a new instance of local storage.
@@ -77,23 +82,29 @@ func NewLocalStore() Store {
 		environments:      make(schemas.Environments),           // Initializes a collection of environments
 		runners:           make(schemas.Runners),                // Initializes a collection of Runners
 		refs:              make(schemas.Refs),                   // Initializes a collection of references
-		metrics:           make(schemas.Metrics),                // initalizes a collection of metrics
-		pipelines:         make(schemas.Pipelines),              // Initialise a collection of pipleines
+		metrics:           make(schemas.Metrics),                // initializes a collection of metrics
+		pipelines:         make(schemas.Pipelines),              // Initialise a collection of pipelines
 		pipelineVariables: make(map[schemas.PipelineKey]string), // Initializes a collection of pipelines variables
 	}
 }
 
 // NewRedisStore creates a new instance of storage using Redis.
-func NewRedisStore(client *redis.Client) Store {
-	return &Redis{
-		Client: client, // Redis client to interact with the Redis server
+func NewRedisStore(client *redis.Client, opts ...RedisStoreOptions) *Redis {
+	r := &Redis{
+		Client:      client, // Redis client to interact with the Redis server
+		StoreConfig: &RedisStoreConfig{},
 	}
+
+	for _, opt := range opts {
+		opt(r.StoreConfig)
+	}
+	return r
 }
 
 // New creates a new store and populates it with the provided projects.
 func New(
 	ctx context.Context,
-	r *redis.Client,
+	r *Redis,
 	projects config.Projects,
 ) (s Store) {
 	// Initializes an OpenTelemetry span for tracing
@@ -102,7 +113,7 @@ func New(
 
 	// Chooses the type of storage based on the presence of a Redis client
 	if r != nil {
-		s = NewRedisStore(r) // Uses Redis if a client is provided
+		s = r // Uses Redis if a client is provided
 	} else {
 		s = NewLocalStore() // Uses local storage otherwise
 	}
