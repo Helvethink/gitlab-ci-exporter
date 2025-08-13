@@ -63,7 +63,7 @@ func New(ctx context.Context, cfg config.Config, version string) (c Controller, 
 	}
 
 	// Initialize Redis connection with provided URL
-	if err = c.configureRedis(ctx, cfg.Redis.URL); err != nil {
+	if err = c.configureRedis(ctx, &cfg.Redis); err != nil {
 		return
 	}
 
@@ -72,7 +72,17 @@ func New(ctx context.Context, cfg config.Config, version string) (c Controller, 
 	c.registerTasks() // Register the tasks that the controller can run
 
 	// Initialize the storage interface which will use Redis and configured projects
-	c.Store = store.New(ctx, c.Redis, c.Config.Projects)
+	var redisStore *store.Redis
+	if c.Redis != nil {
+		redisStore = store.NewRedisStore(c.Redis, store.WithTTLConfig(&store.RedisTTLConfig{
+			Project:     cfg.Redis.ProjectTTL,
+			Environment: cfg.Redis.EnvTTL,
+			Refs:        cfg.Redis.RefTTL,
+			Runner:      cfg.Redis.RunnerTTL,
+			Metrics:     cfg.Redis.MetricTTL,
+		}))
+	}
+	c.Store = store.New(ctx, redisStore, c.Config.Projects)
 
 	// Configure GitLab client, passing the app version for client identification
 	if err = c.configureGitlab(cfg.Gitlab, version); err != nil {
@@ -117,18 +127,18 @@ func (c *Controller) registerTasks() {
 	}
 }
 
-// unqueueTask attempts to remove a task identified by its type and unique ID from the task queue in the store.
+// dequeueTask attempts to remove a task identified by its type and unique ID from the task queue in the store.
 // If the operation fails, it logs a warning with the task details and the error encountered.
 // This helps ensure that tasks are properly cleaned up from the queue to avoid duplicate processing or stale tasks.
-func (c *Controller) unqueueTask(ctx context.Context, tt schemas.TaskType, uniqueID string) {
-	if err := c.Store.UnqueueTask(ctx, tt, uniqueID); err != nil {
+func (c *Controller) dequeueTask(ctx context.Context, tt schemas.TaskType, uniqueID string) {
+	if err := c.Store.DequeueTask(ctx, tt, uniqueID); err != nil {
 		log.WithContext(ctx).
 			WithFields(log.Fields{
 				"task_type":      tt,
 				"task_unique_id": uniqueID,
 			}).
 			WithError(err).
-			Warn("unqueuing task")
+			Warn("dequeue task")
 	}
 }
 
@@ -230,13 +240,13 @@ func (c *Controller) configureGitlab(cfg config.Gitlab, version string) (err err
 
 // configureRedis initializes the Redis client using the provided URL and sets up OpenTelemetry tracing instrumentation.
 // It returns an error if any step of the configuration or connection fails.
-func (c *Controller) configureRedis(ctx context.Context, url string) (err error) {
+func (c *Controller) configureRedis(ctx context.Context, config *config.Redis) (err error) {
 	// Start a new OpenTelemetry trace span for monitoring this function
 	ctx, span := otel.Tracer(tracerName).Start(ctx, "controller:configureRedis")
 	defer span.End()
 
 	// If no Redis URL is provided, skip Redis configuration and use local (in-memory) alternatives
-	if len(url) <= 0 {
+	if len(config.URL) <= 0 {
 		log.Debug("redis url is not configured, skipping configuration & using local driver")
 		return
 	}
@@ -246,7 +256,7 @@ func (c *Controller) configureRedis(ctx context.Context, url string) (err error)
 	var opt *redis.Options
 
 	// Parse the Redis URL into options; return early on error
-	if opt, err = redis.ParseURL(url); err != nil {
+	if opt, err = redis.ParseURL(config.URL); err != nil {
 		return
 	}
 

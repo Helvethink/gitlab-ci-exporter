@@ -185,6 +185,15 @@ func (c *Controller) GarbageCollectRefs(ctx context.Context) error {
 
 	// Iterate over each stored ref to validate it
 	for _, ref := range storedRefs {
+
+		// TODO: => This must be donne directly on store controllers - Redis expiration trick
+		if c.Store.HasRefExpired(ctx, ref.Key()) {
+			if err = deleteRef(ctx, c.Store, ref, "expired"); err != nil {
+				return err
+			}
+			continue
+		}
+
 		// Check if the project associated with the ref still exists
 		projectExists, err := c.Store.ProjectExists(ctx, ref.Project.Key())
 		if err != nil {
@@ -430,6 +439,14 @@ func (c *Controller) GarbageCollectMetrics(ctx context.Context) error {
 	}
 
 	for k, m := range storedMetrics {
+		// TODO: => This must be donne directly on store controllers - Redis expiration trick
+		if c.Store.HasMetricExpired(ctx, m.Key()) {
+			if err = deleteMetric(ctx, c.Store, m, "expired"); err != nil {
+				return err
+			}
+			continue
+		}
+
 		// Retrieve metric labels needed to identify the owning project, ref, runner, or environment.
 		metricLabelProject, metricLabelProjectExists := m.Labels["project"]
 		metricLabelRef, metricLabelRefExists := m.Labels["ref"]
@@ -438,6 +455,11 @@ func (c *Controller) GarbageCollectMetrics(ctx context.Context) error {
 
 		// Delete metrics missing the "project" label or both "ref" and "environment" labels.
 		if !metricLabelRunnerExists && (!metricLabelProjectExists || (!metricLabelRefExists && !metricLabelEnvironmentExists)) {
+			// TODO: => This must be donne directly on store controllers - Redis expiration trick
+			if err = deleteMetric(ctx, c.Store, m, "project-or-ref-and-environment-label-undefined"); err != nil {
+				return err
+			}
+
 			if err = c.Store.DelMetric(ctx, k); err != nil {
 				return err
 			}
@@ -461,6 +483,11 @@ func (c *Controller) GarbageCollectMetrics(ctx context.Context) error {
 
 			// Delete the metric if the referenced ref no longer exists.
 			if !refExists {
+				// TODO: => This must be donne directly on store controllers - Redis expiration trick
+				if err = deleteMetric(ctx, c.Store, m, "deleted metric from the store"); err != nil {
+					return err
+				}
+
 				if err = c.Store.DelMetric(ctx, k); err != nil {
 					return err
 				}
@@ -533,6 +560,10 @@ func (c *Controller) GarbageCollectMetrics(ctx context.Context) error {
 
 			// Delete the metric if the runner no longer exists
 			if !runnerExists {
+				// TODO: => This must be donne directly on store controllers - Redis expiration trick
+				if err = deleteMetric(ctx, c.Store, m, "deleted metric from the store"); err != nil {
+					return err
+				}
 				if err = c.Store.DelMetric(ctx, k); err != nil {
 					return err
 				}
@@ -549,6 +580,10 @@ func (c *Controller) GarbageCollectMetrics(ctx context.Context) error {
 			switch m.Kind {
 			case schemas.MetricKindRunner:
 				if runner.OutputSparseStatusMetrics && m.Value != 1 {
+					// TODO: => This must be donne directly on store controllers - Redis expiration trick
+					if err = deleteMetric(ctx, c.Store, m, "output-sparse-metrics-enabled-on-runner"); err != nil {
+						return err
+					}
 					if err = c.Store.DelMetric(ctx, k); err != nil {
 						return err
 					}
@@ -663,6 +698,20 @@ func deleteRef(ctx context.Context, s store.Store, ref schemas.Ref, reason strin
 		"ref-kind":     ref.Kind,
 		"reason":       reason,
 	}).Info("deleted ref from the store")
+
+	return
+}
+
+func deleteMetric(ctx context.Context, s store.Store, m schemas.Metric, reason string) (err error) {
+	if err = s.DelMetric(ctx, m.Key()); err != nil {
+		return
+	}
+
+	log.WithFields(log.Fields{
+		"metric-kind":   m.Kind,
+		"metric-labels": m.Labels,
+		"reason":        reason,
+	}).Info("deleted metric from the store")
 
 	return
 }
