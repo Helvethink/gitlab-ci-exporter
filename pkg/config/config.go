@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/creasty/defaults"
 	"github.com/go-playground/validator/v10"
@@ -111,6 +112,12 @@ type Redis struct {
 	// URL is the connection string used to connect to the Redis server.
 	// Format example: redis[s]://[:password@]host[:port][/db-number][?option=value]
 	URL string `yaml:"url"`
+
+	ProjectTTL time.Duration `default:"336h" yaml:"project_ttl"` // ProjectTTL defines TTL for projects by default 2 weeks
+	RefTTL     time.Duration `default:"1h" yaml:"ref_ttl"`       // RefTTL defines TTL for references by default 1h
+	RunnerTTL  time.Duration `default:"1h" yaml:"runner_ttl"`    // RunnerTTL defines TTL for runners by default 1h
+	EnvTTL     time.Duration `default:"1h" yaml:"env_ttl"`       // EnvTTL defines TTL for Environments by default 1h
+	MetricTTL  time.Duration `default:"1h" yaml:"metric_ttl"`    // MetricTTL defines TTL for Metrics by default 1h
 }
 
 // Pull holds configuration related to how and when data is pulled from GitLab.
