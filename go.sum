@@ -186,8 +186,8 @@ github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342 h1:FnBeRrxr7OU4VvAz
 github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342/go.mod h1:Ohn+xnUBiLI6FVj/9LpzZWtj1/D6lUovWYBkxHVV3aM=
 github.com/yuin/gopher-lua v1.1.1 h1:kYKnWBjvbNP4XLT3+bPEwAXJx262OhaHDWDVOPjL46M=
 github.com/yuin/gopher-lua v1.1.1/go.mod h1:GBR0iDaNXjAgGg9zfCvksxSRnQx76gclCIb7kdAd1Pw=
-gitlab.com/gitlab-org/api/client-go v0.139.2 h1:Le1/q+ZBYSr3HG9mSJa+/ci36S9tFsa9nEG3b2Cq6kk=
-gitlab.com/gitlab-org/api/client-go v0.139.2/go.mod h1:vY0XbE86FvL7v5jCGDiaFgDyCV8YbmjIIkBhXx+ZDWM=
+gitlab.com/gitlab-org/api/client-go v0.141.1 h1:d27K2wKSAzp6ytoc7pwJrNGQy5PRAVNXgVav16KfEMg=
+gitlab.com/gitlab-org/api/client-go v0.141.1/go.mod h1:IVkgruxTxL3I9250JBxDeSS1gt+/OO5fQnQnMINMtZ0=
 go.openly.dev/pointy v1.3.0 h1:keht3ObkbDNdY8PWPwB7Kcqk+MAlNStk5kXZTxukE68=
 go.openly.dev/pointy v1.3.0/go.mod h1:rccSKiQDQ2QkNfSVT2KG8Budnfhf3At8IWxy/3ElYes=
 go.opentelemetry.io/auto/sdk v1.1.0 h1:cH53jehLUN6UFLY71z+NDOiNJqDdPRaXzTel0sJySYA=
