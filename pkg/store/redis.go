@@ -29,6 +29,137 @@ const (
 // Redis represents a Redis client wrapper.
 type Redis struct {
 	*redis.Client
+	StoreConfig *RedisStoreConfig
+}
+
+// RedisStoreConfig represents the configuration for a Redis-based store.
+// It can hold additional options like time-to-live (TTL) settings for different data types.
+type RedisStoreConfig struct {
+	// TTLConfig defines how long different types of data should be kept in Redis
+	// before expiring. If nil, default TTL values will be used.
+	TTLConfig *RedisTTLConfig
+}
+
+// RedisTTLConfig contains time-to-live (TTL) durations for different cached entities.
+// Each field specifies how long that entity should remain in Redis before being deleted.
+type RedisTTLConfig struct {
+	Project     time.Duration // Project is the TTL for cached project data.
+	Environment time.Duration // Environment is the TTL for cached environment data.
+	Runner      time.Duration // Runner is the TTL for cached GitLab runner data.
+	Refs        time.Duration // Refs is the TTL for cached Git references (branches, tags, merge requests).
+	Metrics     time.Duration // Metrics is the TTL for cached metrics data.
+}
+
+// WithTTLConfig is an option function for setting a Redis TTL configuration.
+// It follows the "functional options" pattern, allowing you to configure
+// a RedisStoreConfig instance when creating it.
+//
+// Example:
+//
+//	cfg := &RedisStoreConfig{}
+//	WithTTLConfig(&RedisTTLConfig{Project: time.Hour})(cfg)
+//
+// This will set cfg.TTLConfig to the provided TTL configuration.
+func WithTTLConfig(opts *RedisTTLConfig) func(*RedisStoreConfig) {
+	return func(cfg *RedisStoreConfig) {
+		cfg.TTLConfig = opts
+	}
+}
+
+// RedisStoreOptions defines a function type used to modify a RedisStoreConfig.
+// It follows the "functional options" design pattern, where configuration
+// is applied by passing in functions that mutate a config object.
+//
+// Any function with this signature can be used to set or override fields
+// in a RedisStoreConfig when initializing a Redis store.
+//
+// Example:
+//
+//	func WithDefaultTTL(ttl time.Duration) RedisStoreOptions {
+//	    return func(cfg *RedisStoreConfig) {
+//	        cfg.TTLConfig = &RedisTTLConfig{
+//	            Project: ttl,
+//	            Environment: ttl,
+//	            Runner: ttl,
+//	            Refs: ttl,
+//	            Metrics: ttl,
+//	        }
+//	    }
+//	}
+type RedisStoreOptions func(opts *RedisStoreConfig)
+
+// HasProjectExpired checks if a project key's TTL entry still exists in Redis.
+// Returns true if the TTL key exists (meaning it has not yet expired), and false otherwise.
+// If there's an error querying Redis, it fails safe and returns false.
+func (r *Redis) HasProjectExpired(ctx context.Context, key schemas.ProjectKey) bool {
+	reply, err := r.Exists(ctx, getTTLProjectKey(key)).Result()
+	if err != nil {
+		return false // On Redis error, assume expired (avoid false positives)
+	}
+	return reply > 0 // Redis EXISTS returns >0 if the key exists
+}
+
+// getTTLProjectKey formats the Redis TTL key name for a given project.
+// The key is prefixed with a constant to group all project TTL keys.
+func getTTLProjectKey(key schemas.ProjectKey) string {
+	return fmt.Sprintf("%s:%s", redisProjectsKey, key)
+}
+
+// need the method: HasEnvExpired(ctx context.Context, key schemas.RefKey) bool
+// HasEnvExpired checks if an environment key's TTL entry still exists in Redis.
+func (r *Redis) HasEnvExpired(ctx context.Context, key schemas.EnvironmentKey) bool {
+	reply, err := r.Exists(ctx, getTTLEnvKey(key)).Result()
+	if err != nil {
+		return false
+	}
+	return reply > 0
+}
+
+// getTTLEnvKey formats the Redis TTL key name for a given environment.
+func getTTLEnvKey(key schemas.EnvironmentKey) string {
+	return fmt.Sprintf("%s:%s", redisEnvironmentsKey, key)
+}
+
+// HasRunnerExpired checks if a runner key's TTL entry still exists in Redis.
+func (r *Redis) HasRunnerExpired(ctx context.Context, key schemas.RunnerKey) bool {
+	reply, err := r.Exists(ctx, getTTLRunnerKey(key)).Result()
+	if err != nil {
+		return false
+	}
+	return reply > 0
+}
+
+// getTTLRunnerKey formats the Redis TTL key name for a given runner.
+func getTTLRunnerKey(key schemas.RunnerKey) string {
+	return fmt.Sprintf("%s:%s", redisRunnerKey, key)
+}
+
+// HasRefExpired checks if a ref key's TTL entry still exists in Redis.
+func (r *Redis) HasRefExpired(ctx context.Context, key schemas.RefKey) bool {
+	reply, err := r.Exists(ctx, getTTLRefKey(key)).Result()
+	if err != nil {
+		return false
+	}
+	return reply > 0
+}
+
+// getTTLRefKey formats the Redis TTL key name for a given ref.
+func getTTLRefKey(key schemas.RefKey) string {
+	return fmt.Sprintf("%s:%s", redisRefsKey, key)
+}
+
+// HasMetricExpired checks if a metric key's TTL entry still exists in Redis.
+func (r *Redis) HasMetricExpired(ctx context.Context, key schemas.MetricKey) bool {
+	reply, err := r.Exists(ctx, getTTLMetricKey(key)).Result()
+	if err != nil {
+		return false
+	}
+	return reply > 0
+}
+
+// getTTLMetricKey formats the Redis TTL key name for a given metric.
+func getTTLMetricKey(key schemas.MetricKey) string {
+	return fmt.Sprintf("%s:%s", redisMetricsKey, key)
 }
 
 // SetRunner stores an runner in Redis.
@@ -41,6 +172,15 @@ func (r *Redis) SetRunner(ctx context.Context, ru schemas.Runner) error {
 
 	// Store the marshalled runner to Redis
 	_, err = r.HSet(ctx, redisRunnerKey, string(ru.Key()), marshalledRunner).Result()
+	if err != nil {
+		return err
+	}
+
+	// If a TTL configuration is provided for the Redis store, set a key indicating that this ref exists, with the TTL
+	// value defined for "Metric" in the configuration.
+	if r.StoreConfig.TTLConfig != nil {
+		_, err = r.Set(ctx, getTTLRunnerKey(ru.Key()), true, r.StoreConfig.TTLConfig.Runner).Result()
+	}
 	return err
 }
 
@@ -123,6 +263,15 @@ func (r *Redis) SetProject(ctx context.Context, p schemas.Project) error {
 
 	// Store the marshalled project in Redis
 	_, err = r.HSet(ctx, redisProjectsKey, string(p.Key()), marshalledProject).Result()
+	if err != nil {
+		return err
+	}
+
+	// If a TTL configuration is provided for the Redis store, set a key indicating that this ref exists, with the TTL
+	// value defined for "Project" in the configuration.
+	if r.StoreConfig.TTLConfig != nil {
+		_, err = r.Set(ctx, getTTLProjectKey(p.Key()), true, r.StoreConfig.TTLConfig.Project).Result()
+	}
 	return err
 }
 
@@ -205,6 +354,15 @@ func (r *Redis) SetEnvironment(ctx context.Context, e schemas.Environment) error
 
 	// Store the marshalled environment in Redis
 	_, err = r.HSet(ctx, redisEnvironmentsKey, string(e.Key()), marshalledEnvironment).Result()
+	if err != nil {
+		return err
+	}
+
+	// If a TTL configuration is provided for the Redis store, set a key indicating that this ref exists, with the TTL
+	// value defined for "Project" in the configuration.
+	if r.StoreConfig.TTLConfig != nil {
+		_, err = r.Set(ctx, getTTLEnvKey(e.Key()), true, r.StoreConfig.TTLConfig.Environment).Result()
+	}
 	return err
 }
 
@@ -287,6 +445,16 @@ func (r *Redis) SetRef(ctx context.Context, ref schemas.Ref) error {
 
 	// Store the marshalled reference in Redis
 	_, err = r.HSet(ctx, redisRefsKey, string(ref.Key()), marshalledRef).Result()
+	if err != nil {
+		return err
+	}
+
+	// If a TTL configuration is provided for the Redis store, set a key indicating that this ref exists, with the TTL
+	// value defined for "Refs" in the configuration.
+	if r.StoreConfig.TTLConfig != nil {
+		_, err = r.Set(ctx, getTTLRefKey(ref.Key()), true, r.StoreConfig.TTLConfig.Refs).Result()
+	}
+
 	return err
 }
 
@@ -369,6 +537,16 @@ func (r *Redis) SetMetric(ctx context.Context, m schemas.Metric) error {
 
 	// Store the marshalled metric in Redis
 	_, err = r.HSet(ctx, redisMetricsKey, string(m.Key()), marshalledMetric).Result()
+	if err != nil {
+		return err
+	}
+
+	// If a TTL configuration is provided for the Redis store, set a key indicating that this ref exists, with the TTL
+	// value defined for "Metric" in the configuration.
+	if r.StoreConfig.TTLConfig != nil {
+		_, err = r.Set(ctx, getTTLMetricKey(m.Key()), true, r.StoreConfig.TTLConfig.Metrics).Result()
+	}
+
 	return err
 }
 
@@ -570,8 +748,8 @@ func (r *Redis) QueueTask(ctx context.Context, tt schemas.TaskType, taskUUID, pr
 	return
 }
 
-// UnqueueTask removes the task from the tracker.
-func (r *Redis) UnqueueTask(ctx context.Context, tt schemas.TaskType, taskUUID string) (err error) {
+// DequeueTask removes the task from the tracker.
+func (r *Redis) DequeueTask(ctx context.Context, tt schemas.TaskType, taskUUID string) (err error) {
 	var matched int64
 
 	// Delete the task key from Redis

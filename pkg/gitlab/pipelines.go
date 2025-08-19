@@ -329,7 +329,7 @@ func (c *Client) GetRefPipelineTestReport(ctx context.Context, ref schemas.Ref) 
 	span.SetAttributes(attribute.String("ref_name", ref.Name))
 
 	// Return early if no latest pipeline is available for this ref
-	if reflect.DeepEqual(ref.LatestPipeline, (schemas.Pipeline{})) {
+	if reflect.DeepEqual(ref.LatestPipeline, schemas.Pipeline{}) {
 		log.WithFields(
 			log.Fields{
 				"project-name": ref.Project.Name,

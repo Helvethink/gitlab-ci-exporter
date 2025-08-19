@@ -7,10 +7,10 @@ import (
 )
 
 func TestNewProject(t *testing.T) {
-	p := Project{}
+	// Start from defaults with the given name
+	p := NewProject("foo/bar")
 
-	p.Name = "foo/bar"
-
+	// Adjust only what the test scenario needs
 	p.OutputSparseStatusMetrics = true
 
 	p.Pull.Environments.Regexp = `.*`
@@ -24,12 +24,11 @@ func TestNewProject(t *testing.T) {
 	p.Pull.Refs.Tags.Regexp = `.*`
 	p.Pull.Refs.Tags.ExcludeDeleted = true
 
-	p.Pull.Refs.MergeRequests.Regexp = `.*`
-
 	p.Pull.Pipeline.Jobs.FromChildPipelines.Enabled = true
 	p.Pull.Pipeline.Jobs.RunnerDescription.Enabled = true
 	p.Pull.Pipeline.Jobs.RunnerDescription.AggregationRegexp = `shared-runners-manager-(\d*)\.gitlab\.com`
 	p.Pull.Pipeline.Variables.Regexp = `.*`
+	p.Pull.Pipeline.PerRef = 1
 
 	assert.Equal(t, p, NewProject("foo/bar"))
 }

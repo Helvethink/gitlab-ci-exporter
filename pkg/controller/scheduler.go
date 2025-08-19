@@ -84,7 +84,7 @@ func NewTaskController(ctx context.Context, r *redis.Client, maximumJobsQueueSiz
 // It ensures that the task is unqueued after processing regardless of success or failure.
 func (c *Controller) TaskHandlerPullProject(ctx context.Context, name string, pull config.ProjectPull) error {
 	// Ensure the task is removed from the queue once this handler finishes
-	defer c.unqueueTask(ctx, schemas.TaskTypePullProject, name)
+	defer c.dequeueTask(ctx, schemas.TaskTypePullProject, name)
 
 	// Call the actual project pulling logic
 	return c.PullProject(ctx, name, pull)
@@ -94,7 +94,7 @@ func (c *Controller) TaskHandlerPullProject(ctx context.Context, name string, pu
 // based on a wildcard configuration. It unqueues the task when done.
 func (c *Controller) TaskHandlerPullProjectsFromWildcard(ctx context.Context, id string, w config.Wildcard) error {
 	// Ensure the task is removed from the queue after processing
-	defer c.unqueueTask(ctx, schemas.TaskTypePullProjectsFromWildcard, id)
+	defer c.dequeueTask(ctx, schemas.TaskTypePullProjectsFromWildcard, id)
 
 	// Execute pulling projects matching the wildcard configuration
 	return c.PullProjectsFromWildcard(ctx, w)
@@ -104,7 +104,7 @@ func (c *Controller) TaskHandlerPullProjectsFromWildcard(ctx context.Context, id
 // from a given project. It unqueues the task once done and logs any errors without retrying.
 func (c *Controller) TaskHandlerPullEnvironmentsFromProject(ctx context.Context, p schemas.Project) {
 	// Ensure the task is removed from the queue after processing
-	defer c.unqueueTask(ctx, schemas.TaskTypePullEnvironmentsFromProject, string(p.Key()))
+	defer c.dequeueTask(ctx, schemas.TaskTypePullEnvironmentsFromProject, string(p.Key()))
 
 	// Only proceed if environment pulling is enabled for the project
 	if p.Pull.Environments.Enabled {
@@ -123,7 +123,7 @@ func (c *Controller) TaskHandlerPullEnvironmentsFromProject(ctx context.Context,
 // TaskHandlerPullRunnersFromProject TODO
 func (c *Controller) TaskHandlerPullRunnersFromProject(ctx context.Context, p schemas.Project) {
 	// Ensure the task is removed from the queue after processing
-	defer c.unqueueTask(ctx, schemas.TaskTypePullRunnersFromProject, string(p.Key()))
+	defer c.dequeueTask(ctx, schemas.TaskTypePullRunnersFromProject, string(p.Key()))
 
 	// Only proceed if runners pulling is enabled for the project
 	if p.Pull.Runners.Enabled {
@@ -144,7 +144,7 @@ func (c *Controller) TaskHandlerPullRunnersFromProject(ctx context.Context, p sc
 // and logs any errors encountered without retrying the task.
 func (c *Controller) TaskHandlerPullEnvironmentMetrics(ctx context.Context, env schemas.Environment) {
 	// Ensure the task is removed from the queue when this function exits
-	defer c.unqueueTask(ctx, schemas.TaskTypePullEnvironmentMetrics, string(env.Key()))
+	defer c.dequeueTask(ctx, schemas.TaskTypePullEnvironmentMetrics, string(env.Key()))
 
 	// Attempt to pull environment metrics, log warning on failure but do not retry
 	if err := c.PullEnvironmentMetrics(ctx, env); err != nil {
@@ -164,7 +164,7 @@ func (c *Controller) TaskHandlerPullEnvironmentMetrics(ctx context.Context, env 
 // and logs any errors encountered without retrying the task.
 func (c *Controller) TaskHandlerPullRunnerMetrics(ctx context.Context, runner schemas.Runner) {
 	// Ensure the task is removed from the queue when this function exits
-	defer c.unqueueTask(ctx, schemas.TaskTypePullRunnersMetrics, string(runner.Key()))
+	defer c.dequeueTask(ctx, schemas.TaskTypePullRunnersMetrics, string(runner.Key()))
 
 	// Attempt to pull runner metrics, log warning on failure but do not retry
 	if err := c.ProcessRunnerMetrics(ctx, runner); err != nil {
@@ -184,7 +184,7 @@ func (c *Controller) TaskHandlerPullRunnerMetrics(ctx context.Context, runner sc
 // Any errors encountered during the pull are logged as warnings, and the task is not retried.
 func (c *Controller) TaskHandlerPullRefsFromProject(ctx context.Context, p schemas.Project) {
 	// Ensure the task is removed from the queue when this function completes
-	defer c.unqueueTask(ctx, schemas.TaskTypePullRefsFromProject, string(p.Key()))
+	defer c.dequeueTask(ctx, schemas.TaskTypePullRefsFromProject, string(p.Key()))
 
 	// Attempt to pull refs from the specified project, logging any errors without retrying
 	if err := c.PullRefsFromProject(ctx, p); err != nil {
@@ -202,7 +202,7 @@ func (c *Controller) TaskHandlerPullRefsFromProject(ctx context.Context, p schem
 // once completed. Errors during the pull are logged as warnings without retrying.
 func (c *Controller) TaskHandlerPullRefMetrics(ctx context.Context, ref schemas.Ref) {
 	// Ensure the task is removed from the queue when this function completes
-	defer c.unqueueTask(ctx, schemas.TaskTypePullRefMetrics, string(ref.Key()))
+	defer c.dequeueTask(ctx, schemas.TaskTypePullRefMetrics, string(ref.Key()))
 
 	// Attempt to pull metrics for the specified ref, logging any errors without retrying
 	if err := c.PullRefMetrics(ctx, ref); err != nil {
@@ -221,7 +221,7 @@ func (c *Controller) TaskHandlerPullRefMetrics(ctx context.Context, ref schemas.
 // For each wildcard configured, it schedules a task to pull projects that match that wildcard.
 func (c *Controller) TaskHandlerPullProjectsFromWildcards(ctx context.Context) {
 	// Ensure this task is removed from the queue after execution
-	defer c.unqueueTask(ctx, schemas.TaskTypePullProjectsFromWildcards, "_")
+	defer c.dequeueTask(ctx, schemas.TaskTypePullProjectsFromWildcards, "_")
 
 	// Update the monitoring system for the last scheduling of this task type
 	defer c.TaskController.monitorLastTaskScheduling(schemas.TaskTypePullProjectsFromWildcards)
@@ -245,7 +245,7 @@ func (c *Controller) TaskHandlerPullProjectsFromWildcards(ctx context.Context) {
 // For each project in the store, it schedules a task to pull that project's environments.
 func (c *Controller) TaskHandlerPullEnvironmentsFromProjects(ctx context.Context) {
 	// Remove this task from the queue after completion
-	defer c.unqueueTask(ctx, schemas.TaskTypePullEnvironmentsFromProjects, "_")
+	defer c.dequeueTask(ctx, schemas.TaskTypePullEnvironmentsFromProjects, "_")
 
 	// Update the monitoring information about the last time this task type was scheduled
 	defer c.TaskController.monitorLastTaskScheduling(schemas.TaskTypePullEnvironmentsFromProjects)
@@ -282,7 +282,7 @@ func (c *Controller) TaskHandlerPullEnvironmentsFromProjects(ctx context.Context
 // TaskHandlerPullRunnersFromProjects TODO
 func (c *Controller) TaskHandlerPullRunnersFromProjects(ctx context.Context) {
 	// Remove this task from the queue after completion
-	defer c.unqueueTask(ctx, schemas.TaskTypePullRunnersFromProjects, "_")
+	defer c.dequeueTask(ctx, schemas.TaskTypePullRunnersFromProjects, "_")
 
 	// Update the monitoring information about the last time this task type was scheduled
 	defer c.TaskController.monitorLastTaskScheduling(schemas.TaskTypePullRunnersFromProjects)
@@ -322,7 +322,7 @@ func (c *Controller) TaskHandlerPullRunnersFromProjects(ctx context.Context) {
 // For each project in the store, it schedules a task to pull that project's refs.
 func (c *Controller) TaskHandlerPullRefsFromProjects(ctx context.Context) {
 	// Remove this task from the queue after completion
-	defer c.unqueueTask(ctx, schemas.TaskTypePullRefsFromProjects, "_")
+	defer c.dequeueTask(ctx, schemas.TaskTypePullRefsFromProjects, "_")
 
 	// Update monitoring info about the last time this task type was scheduled
 	defer c.TaskController.monitorLastTaskScheduling(schemas.TaskTypePullRefsFromProjects)
@@ -363,7 +363,7 @@ func (c *Controller) TaskHandlerPullRefsFromProjects(ctx context.Context) {
 // to pull metrics for each environment and each ref.
 func (c *Controller) TaskHandlerPullMetrics(ctx context.Context) {
 	// Remove this task from the queue when done
-	defer c.unqueueTask(ctx, schemas.TaskTypePullMetrics, "_")
+	defer c.dequeueTask(ctx, schemas.TaskTypePullMetrics, "_")
 
 	// Update monitoring about when this task type was last scheduled
 	defer c.TaskController.monitorLastTaskScheduling(schemas.TaskTypePullMetrics)
@@ -445,7 +445,7 @@ func (c *Controller) TaskHandlerPullMetrics(ctx context.Context) {
 // It ensures the task is properly unqueued and updates task scheduling monitoring.
 // Returns an error if the garbage collection fails.
 func (c *Controller) TaskHandlerGarbageCollectProjects(ctx context.Context) error {
-	defer c.unqueueTask(ctx, schemas.TaskTypeGarbageCollectProjects, "_")
+	defer c.dequeueTask(ctx, schemas.TaskTypeGarbageCollectProjects, "_")
 	defer c.TaskController.monitorLastTaskScheduling(schemas.TaskTypeGarbageCollectProjects)
 
 	return c.GarbageCollectProjects(ctx)
@@ -455,7 +455,7 @@ func (c *Controller) TaskHandlerGarbageCollectProjects(ctx context.Context) erro
 // It ensures the task is properly unqueued and updates task scheduling monitoring.
 // Returns an error if the garbage collection fails.
 func (c *Controller) TaskHandlerGarbageCollectEnvironments(ctx context.Context) error {
-	defer c.unqueueTask(ctx, schemas.TaskTypeGarbageCollectEnvironments, "_")
+	defer c.dequeueTask(ctx, schemas.TaskTypeGarbageCollectEnvironments, "_")
 	defer c.TaskController.monitorLastTaskScheduling(schemas.TaskTypeGarbageCollectEnvironments)
 
 	return c.GarbageCollectEnvironments(ctx)
@@ -465,7 +465,7 @@ func (c *Controller) TaskHandlerGarbageCollectEnvironments(ctx context.Context) 
 // It ensures the task is properly unqueued and updates task scheduling monitoring.
 // Returns an error if the garbage collection fails.
 func (c *Controller) TaskHandlerGarbageCollectRefs(ctx context.Context) error {
-	defer c.unqueueTask(ctx, schemas.TaskTypeGarbageCollectRefs, "_")
+	defer c.dequeueTask(ctx, schemas.TaskTypeGarbageCollectRefs, "_")
 	defer c.TaskController.monitorLastTaskScheduling(schemas.TaskTypeGarbageCollectRefs)
 
 	return c.GarbageCollectRefs(ctx)
@@ -475,7 +475,7 @@ func (c *Controller) TaskHandlerGarbageCollectRefs(ctx context.Context) error {
 // It ensures that the task is properly unqueued once done, and updates monitoring info about the last
 // time this type of task was scheduled. Any error from the actual garbage collection is returned.
 func (c *Controller) TaskHandlerGarbageCollectMetrics(ctx context.Context) error {
-	defer c.unqueueTask(ctx, schemas.TaskTypeGarbageCollectMetrics, "_")
+	defer c.dequeueTask(ctx, schemas.TaskTypeGarbageCollectMetrics, "_")
 	defer c.TaskController.monitorLastTaskScheduling(schemas.TaskTypeGarbageCollectMetrics)
 
 	return c.GarbageCollectMetrics(ctx)
@@ -485,7 +485,7 @@ func (c *Controller) TaskHandlerGarbageCollectMetrics(ctx context.Context) error
 // It ensures the task is properly unqueued and updates task scheduling monitoring.
 // Returns an error if the garbage collection fails.
 func (c *Controller) TaskHandlerGarbageCollectRunners(ctx context.Context) error {
-	defer c.unqueueTask(ctx, schemas.TaskTypeGarbageCollectRunners, "_")
+	defer c.dequeueTask(ctx, schemas.TaskTypeGarbageCollectRunners, "_")
 	defer c.TaskController.monitorLastTaskScheduling(schemas.TaskTypeGarbageCollectRunners)
 
 	return c.GarbageCollectRunners(ctx)
