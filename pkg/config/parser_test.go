@@ -79,9 +79,9 @@ garbage_collect:
     scheduled: false
     interval_seconds: 2
   runners:
-    interval_seconds: 14400
-	scheduled: false
-	interval_seconds: 3
+    on_init: true
+    scheduled: false
+    interval_seconds: 3
   refs:
     on_init: true
     scheduled: false
@@ -97,9 +97,9 @@ project_defaults:
     environments:
       enabled: true
       regexp: "^baz$"
-	runners:
+    runners:
       enabled: true
-      regex: ".*"
+      regexp: ".*"
       ExcludeStopped: false
     refs:
       branches:
@@ -120,10 +120,11 @@ project_defaults:
         max_age_seconds: 3
     pipeline:
       jobs:
-        enabled: true
+        enabled: false
       variables:
-        enabled: true
+        enabled: false
         regexp: "^CI_"
+      PerRef: 3
 
 projects:
   - name: foo/project
@@ -136,6 +137,8 @@ projects:
         branches:
           regexp: "^foo$"
           max_age_seconds: 2
+      pipeline:
+        PerRef: 10
       runners:
         enabled: true
         regex: ".*"
@@ -162,6 +165,7 @@ wildcards:
 
 	xcfg := New()
 
+	// Explicit YAML overrides
 	xcfg.Log.Level = "trace"
 	xcfg.Log.Format = "json"
 
@@ -171,13 +175,12 @@ wildcards:
 	xcfg.Server.ListenAddress = ":1025"
 	xcfg.Server.Metrics.Enabled = false
 	xcfg.Server.Metrics.EnableOpenmetricsEncoding = false
-
 	xcfg.Server.Webhook.Enabled = true
 	xcfg.Server.Webhook.SecretToken = "secret"
 
 	xcfg.Gitlab.URL = "https://gitlab.example.com"
-	xcfg.Gitlab.HealthURL = "https://gitlab.example.com/-/health"
 	xcfg.Gitlab.Token = "xrN14n9-ywvAFxdwadadadadwadadw"
+	xcfg.Gitlab.HealthURL = "https://gitlab.example.com/-/health"
 	xcfg.Gitlab.EnableHealthCheck = false
 	xcfg.Gitlab.EnableTLSVerify = false
 	xcfg.Gitlab.MaximumRequestsPerSecond = 2
@@ -192,17 +195,13 @@ wildcards:
 	xcfg.Pull.EnvironmentsFromProjects.Scheduled = false
 	xcfg.Pull.EnvironmentsFromProjects.IntervalSeconds = 2
 
-	xcfg.Pull.RunnersFromProjects.OnInit = false
-	xcfg.Pull.RunnersFromProjects.Scheduled = false
-	xcfg.Pull.RunnersFromProjects.IntervalSeconds = 3
-
 	xcfg.Pull.RefsFromProjects.OnInit = false
 	xcfg.Pull.RefsFromProjects.Scheduled = false
-	xcfg.Pull.RefsFromProjects.IntervalSeconds = 4
+	xcfg.Pull.RefsFromProjects.IntervalSeconds = 3
 
 	xcfg.Pull.Metrics.OnInit = false
 	xcfg.Pull.Metrics.Scheduled = false
-	xcfg.Pull.Metrics.IntervalSeconds = 5
+	xcfg.Pull.Metrics.IntervalSeconds = 4
 
 	xcfg.GarbageCollect.Projects.OnInit = true
 	xcfg.GarbageCollect.Projects.Scheduled = false
@@ -212,13 +211,17 @@ wildcards:
 	xcfg.GarbageCollect.Environments.Scheduled = false
 	xcfg.GarbageCollect.Environments.IntervalSeconds = 2
 
+	xcfg.GarbageCollect.Runners.OnInit = true
+	xcfg.GarbageCollect.Runners.Scheduled = false
+	xcfg.GarbageCollect.Runners.IntervalSeconds = 3
+
 	xcfg.GarbageCollect.Refs.OnInit = true
 	xcfg.GarbageCollect.Refs.Scheduled = false
-	xcfg.GarbageCollect.Refs.IntervalSeconds = 3
+	xcfg.GarbageCollect.Refs.IntervalSeconds = 4
 
 	xcfg.GarbageCollect.Metrics.OnInit = true
 	xcfg.GarbageCollect.Metrics.Scheduled = false
-	xcfg.GarbageCollect.Metrics.IntervalSeconds = 4
+	xcfg.GarbageCollect.Metrics.IntervalSeconds = 5
 
 	xcfg.ProjectDefaults.OutputSparseStatusMetrics = false
 
@@ -245,23 +248,27 @@ wildcards:
 	xcfg.ProjectDefaults.Pull.Refs.MergeRequests.MostRecent = 3
 	xcfg.ProjectDefaults.Pull.Refs.MergeRequests.MaxAgeSeconds = 3
 
-	xcfg.ProjectDefaults.Pull.Pipeline.Jobs.Enabled = true
-	xcfg.ProjectDefaults.Pull.Pipeline.Variables.Enabled = true
+	// YAML explicitly sets Jobs.enabled=false and Variables.enabled=false
+	xcfg.ProjectDefaults.Pull.Pipeline.Jobs.Enabled = false
+	xcfg.ProjectDefaults.Pull.Pipeline.Variables.Enabled = false
 	xcfg.ProjectDefaults.Pull.Pipeline.Variables.Regexp = `^CI_`
+	xcfg.ProjectDefaults.Pull.Pipeline.PerRef = 3
 
+	// Projects
 	p1 := NewProject("foo/project")
 	p1.ProjectParameters = xcfg.ProjectDefaults
 
 	p2 := NewProject("bar/project")
 	p2.ProjectParameters = xcfg.ProjectDefaults
-
 	p2.Pull.Environments.Enabled = false
 	p2.Pull.Environments.Regexp = `^foo$`
 	p2.Pull.Refs.Branches.Regexp = `^foo$`
 	p2.Pull.Refs.Branches.MaxAgeSeconds = 2
+	p2.Pull.Pipeline.PerRef = 10
 
 	xcfg.Projects = []Project{p1, p2}
 
+	// Wildcards
 	w1 := NewWildcard()
 	w1.ProjectParameters = xcfg.ProjectDefaults
 	w1.Search = "bar"
@@ -275,7 +282,6 @@ wildcards:
 
 	xcfg.Wildcards = []Wildcard{w1}
 
-	// Test variable assignments
 	assert.Equal(t, xcfg, cfg)
 }
 

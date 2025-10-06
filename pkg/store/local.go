@@ -9,30 +9,55 @@ import (
 
 // Local represents an in-memory storage implementation for managing projects, environments, references, and metrics.
 type Local struct {
-	projects      schemas.Projects
-	projectsMutex sync.RWMutex // Mutex for thread-safe access to projects
-
-	environments      schemas.Environments
-	environmentsMutex sync.RWMutex // Mutex for thread-safe access to environments
-
-	runners      schemas.Runners
-	runnersMutex sync.RWMutex // Mutex for thread-safe access to runners
-
-	refs      schemas.Refs
-	refsMutex sync.RWMutex // Mutex for thread-safe access to references
-
-	pipelines      schemas.Pipelines
-	pipelinesMutex sync.RWMutex
-
-	pipelineVariables      map[schemas.PipelineKey]string
+	projects               schemas.Projects
+	projectsMutex          sync.RWMutex // Mutex for thread-safe access to projects
+	environments           schemas.Environments
+	environmentsMutex      sync.RWMutex // Mutex for thread-safe access to environments
+	runners                schemas.Runners
+	runnersMutex           sync.RWMutex // Mutex for thread-safe access to runners
+	refs                   schemas.Refs
+	refsMutex              sync.RWMutex // Mutex for thread-safe access to references
+	pipelines              schemas.Pipelines
+	pipelinesMutex         sync.RWMutex
 	pipelineVariablesMutex sync.RWMutex
+	pipelineVariables      map[schemas.PipelineKey]string
+	metrics                schemas.Metrics
+	metricsMutex           sync.RWMutex // Mutex for thread-safe access to metrics
+	tasks                  schemas.Tasks
+	tasksMutex             sync.RWMutex // Mutex for thread-safe access to tasks
+	executedTasksCount     uint64       // Counter for the number of executed tasks
+}
 
-	metrics      schemas.Metrics
-	metricsMutex sync.RWMutex // Mutex for thread-safe access to metrics
+// HasProjectExpired always returns false for the Local store.
+// In the in-memory (Local) implementation, keys do not expire automatically,
+// so this method simply indicates that a project has never "expired".
+func (l *Local) HasProjectExpired(ctx context.Context, key schemas.ProjectKey) bool {
+	return false
+}
 
-	tasks              schemas.Tasks
-	tasksMutex         sync.RWMutex // Mutex for thread-safe access to tasks
-	executedTasksCount uint64       // Counter for the number of executed tasks
+// HasEnvExpired always returns false for the Local store.
+// The Local implementation does not manage TTLs for environments.
+func (l *Local) HasEnvExpired(ctx context.Context, key schemas.EnvironmentKey) bool {
+	return false
+}
+
+// HasRunnerExpired always returns false for the Local store.
+// TTL expiration is only supported in persistent backends like Redis.
+func (l *Local) HasRunnerExpired(ctx context.Context, key schemas.RunnerKey) bool {
+	return false
+}
+
+// HasRefExpired always returns false for the Local store.
+// Since the Local store holds data only in memory without TTL,
+// refs never expire automatically.
+func (l *Local) HasRefExpired(ctx context.Context, key schemas.RefKey) bool {
+	return false
+}
+
+// HasMetricExpired always returns false for the Local store.
+// The Local store does not have time-based key expiration for metrics.
+func (l *Local) HasMetricExpired(ctx context.Context, key schemas.MetricKey) bool {
+	return false
 }
 
 // SetProject stores a project in the local storage.
@@ -356,6 +381,7 @@ func (l *Local) MetricsCount(_ context.Context) (int64, error) {
 	return int64(len(l.metrics)), nil // Return the number of metrics
 }
 
+// SetPipeline ...
 func (l *Local) SetPipeline(_ context.Context, pipeline schemas.Pipeline) error {
 	l.pipelinesMutex.Lock()
 	defer l.pipelinesMutex.Unlock()
@@ -481,8 +507,8 @@ func (l *Local) QueueTask(_ context.Context, tt schemas.TaskType, uniqueID, _ st
 	return false, nil
 }
 
-// UnqueueTask removes the task from the tracker.
-func (l *Local) UnqueueTask(_ context.Context, tt schemas.TaskType, uniqueID string) error {
+// DequeueTask removes the task from the tracker.
+func (l *Local) DequeueTask(_ context.Context, tt schemas.TaskType, uniqueID string) error {
 	if l.isTaskAlreadyQueued(tt, uniqueID) {
 		l.tasksMutex.Lock()         // Lock the mutex for exclusive access
 		defer l.tasksMutex.Unlock() // Ensure the mutex is unlocked when the function exits

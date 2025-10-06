@@ -23,7 +23,7 @@ func newTestRedisStore(t *testing.T) (mr *miniredis.Miniredis, r Store) {
 		mr.Close()
 	})
 
-	return mr, NewRedisStore(redis.NewClient(&redis.Options{Addr: mr.Addr()})).(*Redis)
+	return mr, NewRedisStore(redis.NewClient(&redis.Options{Addr: mr.Addr()}))
 }
 
 func TestRedisProjectFunctions(t *testing.T) {
@@ -285,14 +285,14 @@ func TestRedisQueueTask(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestRedisUnqueueTask(t *testing.T) {
+func TestRedisDequeueTask(t *testing.T) {
 	_, r := newTestRedisStore(t)
 
 	r.QueueTask(testCtx, schemas.TaskTypePullMetrics, "foo", "")
 	count, _ := r.ExecutedTasksCount(testCtx)
 	assert.Equal(t, uint64(0), count)
 
-	assert.NoError(t, r.UnqueueTask(testCtx, schemas.TaskTypePullMetrics, "foo"))
+	assert.NoError(t, r.DequeueTask(testCtx, schemas.TaskTypePullMetrics, "foo"))
 	count, _ = r.ExecutedTasksCount(testCtx)
 	assert.Equal(t, uint64(1), count)
 }
@@ -306,7 +306,7 @@ func TestRedisCurrentlyQueuedTasksCount(t *testing.T) {
 
 	count, _ := r.CurrentlyQueuedTasksCount(testCtx)
 	assert.Equal(t, uint64(3), count)
-	r.UnqueueTask(testCtx, schemas.TaskTypePullMetrics, "foo")
+	r.DequeueTask(testCtx, schemas.TaskTypePullMetrics, "foo")
 	count, _ = r.CurrentlyQueuedTasksCount(testCtx)
 	assert.Equal(t, uint64(2), count)
 }
@@ -316,8 +316,8 @@ func TestRedisExecutedTasksCount(t *testing.T) {
 
 	r.QueueTask(testCtx, schemas.TaskTypePullMetrics, "foo", "")
 	r.QueueTask(testCtx, schemas.TaskTypePullMetrics, "bar", "")
-	r.UnqueueTask(testCtx, schemas.TaskTypePullMetrics, "foo")
-	r.UnqueueTask(testCtx, schemas.TaskTypePullMetrics, "foo")
+	r.DequeueTask(testCtx, schemas.TaskTypePullMetrics, "foo")
+	r.DequeueTask(testCtx, schemas.TaskTypePullMetrics, "foo")
 
 	count, _ := r.ExecutedTasksCount(testCtx)
 	assert.Equal(t, uint64(1), count)

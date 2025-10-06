@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 8,
+  "id": 7,
   "links": [],
   "panels": [
     {
@@ -453,13 +453,34 @@
           "expr": "gcpe_metrics_count",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
-          "legendFormat": "__auto",
+          "legendFormat": "Metrics count",
           "range": true,
           "refId": "A",
           "useBackend": false
         }
       ],
       "title": "Metrics over time",
+      "transformations": [
+        {
+          "id": "calculateField",
+          "options": {
+            "alias": "Median",
+            "mode": "reduceRow",
+            "reduce": {
+              "include": [
+                "Nb of metrics"
+              ],
+              "reducer": "median"
+            },
+            "window": {
+              "reducer": "mean",
+              "windowAlignment": "trailing",
+              "windowSize": 1000,
+              "windowSizeMode": "fixed"
+            }
+          }
+        }
+      ],
       "type": "timeseries"
     },
     {
@@ -955,27 +976,38 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_PROMETHEUS}"
+            "uid": "P1809F7CD0C75ACF3"
           },
-          "disableTextWrap": false,
-          "editorMode": "builder",
-          "exemplar": false,
-          "expr": "gitlab_ci_runners",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": true,
-          "interval": "",
+          "editorMode": "code",
+          "expr": "gitlab_ci_runners_info",
+          "instant": false,
           "legendFormat": "__auto",
-          "range": false,
-          "refId": "A",
-          "useBackend": false
+          "range": true,
+          "refId": "A"
         }
       ],
       "title": "Runner List",
       "transformations": [
         {
           "id": "labelsToFields",
-          "options": {}
+          "options": {
+            "keepLabels": [
+              "active",
+              "contacted_at",
+              "instance",
+              "is_shared",
+              "job",
+              "online",
+              "paused",
+              "runner_description",
+              "runner_groups",
+              "runner_id",
+              "runner_maintenance_note",
+              "runner_projects",
+              "runner_name",
+              "project"
+            ]
+          }
         }
       ],
       "type": "table"
@@ -986,20 +1018,7 @@
   "schemaVersion": 41,
   "tags": [],
   "templating": {
-    "list": [
-      {
-        "current": {
-          "text": "",
-          "value": ""
-        },
-        "name": "DataSource",
-        "options": [],
-        "query": "",
-        "refresh": 1,
-        "regex": "",
-        "type": "query"
-      }
-    ]
+    "list": []
   },
   "time": {
     "from": "now-1h",
@@ -1009,5 +1028,5 @@
   "timezone": "browser",
   "title": "Gitlab Exporter Metrics",
   "uid": "2f6fa597-4273-4243-980f-dded5c6bd301",
-  "version": 5
+  "version": 1
 }

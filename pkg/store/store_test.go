@@ -28,11 +28,11 @@ func TestNewLocalStore(t *testing.T) {
 
 func TestNewRedisStore(t *testing.T) {
 	redisClient := redis.NewClient(&redis.Options{})
-	expectedValue := &Redis{
-		Client: redisClient,
-	}
+	redisStore := NewRedisStore(redisClient)
 
-	assert.Equal(t, expectedValue, NewRedisStore(redisClient))
+	assert.IsType(t, &Redis{}, redisStore)
+	assert.Equal(t, redisClient, redisStore.Client)
+	assert.NotNil(t, redisStore.StoreConfig) // since constructor sets it
 }
 
 func TestNew(t *testing.T) {
@@ -40,8 +40,9 @@ func TestNew(t *testing.T) {
 	assert.IsType(t, &Local{}, localStore)
 
 	redisClient := redis.NewClient(&redis.Options{})
-	redisStore := New(testCtx, redisClient, config.Projects{})
-	assert.IsType(t, &Redis{}, redisStore)
+	redisStore := NewRedisStore(redisClient)
+	store := New(testCtx, redisStore, config.Projects{})
+	assert.IsType(t, &Redis{}, store)
 
 	localStore = New(testCtx, nil, config.Projects{
 		{
