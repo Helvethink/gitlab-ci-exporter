@@ -1,8 +1,6 @@
 module github.com/helvethink/gitlab-ci-exporter
 
-go 1.23.0
-
-toolchain go1.23.3
+go 1.24.0
 
 require (
 	dario.cat/mergo v1.0.2
@@ -41,7 +39,7 @@ require (
 	golang.org/x/exp v0.0.0-20250811191247-51f88131bc50
 	golang.org/x/mod v0.27.0
 	golang.org/x/oauth2 v0.30.0
-	golang.org/x/time v0.12.0
+	golang.org/x/time v0.13.0
 	google.golang.org/grpc v1.75.1
 	google.golang.org/protobuf v1.36.9
 	gopkg.in/yaml.v3 v3.0.1
