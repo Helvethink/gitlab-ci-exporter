@@ -30,7 +30,7 @@ require (
 	github.com/xeonx/timeago v1.0.0-rc5
 	gitlab.com/gitlab-org/api/client-go v0.148.1
 	go.openly.dev/pointy v1.3.0
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.62.0
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.63.0
 	go.opentelemetry.io/otel v1.38.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.37.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.37.0
