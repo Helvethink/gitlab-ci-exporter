@@ -1,6 +1,6 @@
 module github.com/helvethink/gitlab-ci-exporter
 
-go 1.24.0
+go 1.26.1
 
 require (
 	dario.cat/mergo v1.0.2

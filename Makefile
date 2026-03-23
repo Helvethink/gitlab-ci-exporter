@@ -6,7 +6,7 @@ FILES          := $(shell git ls-files */*.go)
 COVERAGE_FILE  := coverage.out
 REPOSITORY     := "helvethink/$(NAME)"
 .DEFAULT_GOAL  := help
-GOLANG_VERSION := 1.23
+GOLANG_VERSION := 1.26.1
 GOLANGCI_LINT_VERSION ?= v2.1.5
 
 .PHONY: lint
