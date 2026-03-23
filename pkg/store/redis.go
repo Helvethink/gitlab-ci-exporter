@@ -682,7 +682,7 @@ func (r *Redis) GetPipelineVariables(ctx context.Context, pipeline schemas.Pipel
 		}
 		var variables string
 
-		if err = msgpack.Unmarshal([]byte(marshalledVariables), variables); err != nil {
+		if err = msgpack.Unmarshal([]byte(marshalledVariables), &variables); err != nil {
 			return variables, err
 		}
 	}
@@ -695,9 +695,15 @@ func (r *Redis) PipelineVariablesExists(ctx context.Context, pipeline schemas.Pi
 }
 
 // SetKeepalive sets a key with a UUID corresponding to the currently running process.
-func (r *Redis) SetKeepalive(ctx context.Context, uuid string, ttl time.Duration) (bool, error) {
+func (r *Redis) SetKeepalive(ctx context.Context, uuid string, ttl time.Duration) (string, error) {
 	// Set a key with the UUID and a time-to-live (TTL) in Redis
-	return r.SetNX(ctx, fmt.Sprintf("%s:%s", redisKeepaliveKey, uuid), nil, ttl).Result()
+	return r.SetArgs(ctx,
+		fmt.Sprintf("%s:%s", redisKeepaliveKey, uuid),
+		nil,
+		redis.SetArgs{
+			TTL: ttl,
+		},
+	).Result()
 }
 
 // KeepaliveExists returns whether a keepalive exists or not for a particular UUID.
@@ -714,38 +720,62 @@ func getRedisQueueKey(tt schemas.TaskType, taskUUID string) string {
 
 // QueueTask registers that we are queueing the task.
 // It returns true if it managed to schedule it, false if it was already scheduled.
-func (r *Redis) QueueTask(ctx context.Context, tt schemas.TaskType, taskUUID, processUUID string) (set bool, err error) {
+func (r *Redis) QueueTask(ctx context.Context, tt schemas.TaskType, taskUUID, processUUID string) (bool, error) {
 	k := getRedisQueueKey(tt, taskUUID)
 
-	// Attempt to set the key, if it already exists, do not overwrite it
-	set, err = r.SetNX(ctx, k, processUUID, 0).Result()
-	if err != nil || set {
-		return
+	// First attempt: try to acquire the task using SET NX
+	set, err := r.SetArgs(ctx, k, processUUID, redis.SetArgs{Mode: "NX"}).Result()
+	if err != nil {
+		return false, err
+	}
+	if set == "OK" {
+		return true, nil
 	}
 
-	// If the key already exists, check if the associated process UUID is the same as the current one
-	var tpuuid string
-	if tpuuid, err = r.Get(ctx, k).Result(); err != nil {
-		return
-	}
+	acquired := false
 
-	// If the process UUID is different, check if the associated process is still alive
-	if tpuuid != processUUID {
-		var uuidIsAlive bool
-		if uuidIsAlive, err = r.KeepaliveExists(ctx, tpuuid); err != nil {
-			return
+	// Slow path: key already exists, determine if we can take over
+	err = r.Watch(ctx, func(tx *redis.Tx) error {
+		current, err := tx.Get(ctx, k).Result()
+		if err != nil {
+			return err
 		}
 
-		// If the process is not alive, override the key and schedule the task
-		if !uuidIsAlive {
-			if _, err = r.Set(ctx, k, processUUID, 0).Result(); err != nil {
-				return
-			}
-			return true, nil
+		// Already owned by this process
+		if current == processUUID {
+			acquired = false
+			return nil
 		}
+
+		// Check whether current owner is still alive
+		alive, err := r.KeepaliveExists(ctx, current)
+		if err != nil {
+			return err
+		}
+
+		// Current owner still alive, cannot override
+		if alive {
+			acquired = false
+			return nil
+		}
+
+		// Current owner is dead, take over
+		_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+			pipe.Set(ctx, k, processUUID, 0)
+			return nil
+		})
+		if err != nil {
+			return err
+		}
+
+		acquired = true
+		return nil
+	}, k)
+	if err != nil {
+		return false, err
 	}
 
-	return
+	return acquired, nil
 }
 
 // DequeueTask removes the task from the tracker.
