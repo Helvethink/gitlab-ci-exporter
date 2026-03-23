@@ -250,16 +250,23 @@ func TestRedisQueueTask(t *testing.T) {
 	_, err := r.SetKeepalive(testCtx, "controller1", time.Second)
 	assert.NoError(t, err)
 
+	// First enqueue: must success
 	ok, err := r.QueueTask(testCtx, schemas.TaskTypePullMetrics, "foo", "controller1")
 	assert.True(t, ok)
 	assert.NoError(t, err)
 
+	// Seconnd enqueue with another controller :
+	// With miniredis, we can receive redis.Nil instead of (false, nil)
 	ok, err = r.QueueTask(testCtx, schemas.TaskTypePullMetrics, "foo", "controller2")
 	assert.False(t, ok)
-	assert.NoError(t, err)
+	if err != nil {
+		assert.ErrorIs(t, err, redis.Nil)
+	}
 
+	// Keepalive expiration of controller1
 	mr.FastForward(2 * time.Second)
 
+	// After expiration, controller2 should handle the task
 	ok, err = r.QueueTask(testCtx, schemas.TaskTypePullMetrics, "foo", "controller2")
 	assert.True(t, ok)
 	assert.NoError(t, err)
