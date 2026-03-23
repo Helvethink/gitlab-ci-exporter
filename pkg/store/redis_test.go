@@ -23,7 +23,7 @@ func newTestRedisStore(t *testing.T) (mr *miniredis.Miniredis, r *Redis) {
 		mr.Close()
 	})
 
-	return mr, NewRedisStore(redis.NewClient(&redis.Options{Addr: mr.Addr()})).(*Redis)
+	return mr, NewRedisStore(redis.NewClient(&redis.Options{Addr: mr.Addr()}))
 }
 
 func TestRedisProjectFunctions(t *testing.T) {
@@ -32,7 +32,6 @@ func TestRedisProjectFunctions(t *testing.T) {
 	p := schemas.NewProject("foo/bar")
 	p.OutputSparseStatusMetrics = false
 
-	// Set project
 	assert.NoError(t, r.SetProject(testCtx, p))
 
 	projects, err := r.Projects(testCtx)
@@ -40,22 +39,18 @@ func TestRedisProjectFunctions(t *testing.T) {
 	assert.Contains(t, projects, p.Key())
 	assert.Equal(t, p, projects[p.Key()])
 
-	// Project exists
 	exists, err := r.ProjectExists(testCtx, p.Key())
 	assert.NoError(t, err)
 	assert.True(t, exists)
 
-	// GetProject should succeed
 	newProject := schemas.NewProject("foo/bar")
 	assert.NoError(t, r.GetProject(testCtx, &newProject))
 	assert.Equal(t, p, newProject)
 
-	// Count
 	count, err := r.ProjectsCount(testCtx)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), count)
 
-	// Delete project
 	assert.NoError(t, r.DelProject(testCtx, p.Key()))
 
 	projects, err = r.Projects(testCtx)
@@ -66,7 +61,6 @@ func TestRedisProjectFunctions(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, exists)
 
-	// GetProject should not update the var this time
 	newProject = schemas.NewProject("foo/bar")
 	assert.NoError(t, r.GetProject(testCtx, &newProject))
 	assert.NotEqual(t, p, newProject)
@@ -81,7 +75,6 @@ func TestRedisEnvironmentFunctions(t *testing.T) {
 		ExternalURL: "bar",
 	}
 
-	// Set environment
 	assert.NoError(t, r.SetEnvironment(testCtx, environment))
 
 	environments, err := r.Environments(testCtx)
@@ -90,12 +83,10 @@ func TestRedisEnvironmentFunctions(t *testing.T) {
 	assert.Equal(t, environment.ProjectName, environments[environment.Key()].ProjectName)
 	assert.Equal(t, environment.ID, environments[environment.Key()].ID)
 
-	// Environment exists
 	exists, err := r.EnvironmentExists(testCtx, environment.Key())
 	assert.NoError(t, err)
 	assert.True(t, exists)
 
-	// GetEnvironment should succeed
 	newEnvironment := schemas.Environment{
 		ProjectName: "foo",
 		ID:          1,
@@ -103,12 +94,10 @@ func TestRedisEnvironmentFunctions(t *testing.T) {
 	assert.NoError(t, r.GetEnvironment(testCtx, &newEnvironment))
 	assert.Equal(t, environment.ExternalURL, newEnvironment.ExternalURL)
 
-	// Count
 	count, err := r.EnvironmentsCount(testCtx)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), count)
 
-	// Delete Environment
 	assert.NoError(t, r.DelEnvironment(testCtx, environment.Key()))
 
 	environments, err = r.Environments(testCtx)
@@ -119,7 +108,6 @@ func TestRedisEnvironmentFunctions(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, exists)
 
-	// GetEnvironment should not update the var this time
 	newEnvironment = schemas.Environment{
 		ProjectName: "foo",
 		ID:          1,
@@ -133,14 +121,8 @@ func TestRedisRefFunctions(t *testing.T) {
 
 	p := schemas.NewProject("foo/bar")
 	p.Topics = "salty"
+	ref := schemas.NewRef(p, schemas.RefKindBranch, "sweet")
 
-	ref := schemas.NewRef(
-		p,
-		schemas.RefKindBranch,
-		"sweet",
-	)
-
-	// Set ref
 	assert.NoError(t, r.SetRef(testCtx, ref))
 
 	projectsRefs, err := r.Refs(testCtx)
@@ -148,12 +130,10 @@ func TestRedisRefFunctions(t *testing.T) {
 	assert.Contains(t, projectsRefs, ref.Key())
 	assert.Equal(t, ref, projectsRefs[ref.Key()])
 
-	// Ref exists
 	exists, err := r.RefExists(testCtx, ref.Key())
 	assert.NoError(t, err)
 	assert.True(t, exists)
 
-	// GetRef should succeed
 	newRef := schemas.Ref{
 		Project: schemas.NewProject("foo/bar"),
 		Kind:    schemas.RefKindBranch,
@@ -162,12 +142,10 @@ func TestRedisRefFunctions(t *testing.T) {
 	assert.NoError(t, r.GetRef(testCtx, &newRef))
 	assert.Equal(t, ref, newRef)
 
-	// Count
 	count, err := r.RefsCount(testCtx)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), count)
 
-	// Delete Ref
 	assert.NoError(t, r.DelRef(testCtx, ref.Key()))
 
 	projectsRefs, err = r.Refs(testCtx)
@@ -178,7 +156,6 @@ func TestRedisRefFunctions(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, exists)
 
-	// GetRef should not update the var this time
 	newRef = schemas.Ref{
 		Kind:    schemas.RefKindBranch,
 		Project: schemas.NewProject("foo/bar"),
@@ -199,7 +176,6 @@ func TestRedisMetricFunctions(t *testing.T) {
 		Value: 5,
 	}
 
-	// Set metric
 	assert.NoError(t, r.SetMetric(testCtx, m))
 
 	metrics, err := r.Metrics(testCtx)
@@ -207,12 +183,10 @@ func TestRedisMetricFunctions(t *testing.T) {
 	assert.Contains(t, metrics, m.Key())
 	assert.Equal(t, m, metrics[m.Key()])
 
-	// Metric exists
 	exists, err := r.MetricExists(testCtx, m.Key())
 	assert.NoError(t, err)
 	assert.True(t, exists)
 
-	// GetMetric should succeed
 	newMetric := schemas.Metric{
 		Kind: schemas.MetricKindCoverage,
 		Labels: prometheus.Labels{
@@ -222,12 +196,10 @@ func TestRedisMetricFunctions(t *testing.T) {
 	assert.NoError(t, r.GetMetric(testCtx, &newMetric))
 	assert.Equal(t, m, newMetric)
 
-	// Count
 	count, err := r.MetricsCount(testCtx)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), count)
 
-	// Delete Metric
 	assert.NoError(t, r.DelMetric(testCtx, m.Key()))
 
 	metrics, err = r.Metrics(testCtx)
@@ -238,7 +210,6 @@ func TestRedisMetricFunctions(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, exists)
 
-	// GetMetric should not update the var this time
 	newMetric = schemas.Metric{
 		Kind: schemas.MetricKindCoverage,
 		Labels: prometheus.Labels{
@@ -280,19 +251,17 @@ func TestRedisQueueTask(t *testing.T) {
 	assert.NoError(t, err)
 
 	ok, err := r.QueueTask(testCtx, schemas.TaskTypePullMetrics, "foo", "controller1")
-	assert.Equal(t, "OK", ok)
+	assert.True(t, ok)
 	assert.NoError(t, err)
 
-	// The keepalive of controller1 not being expired, we should not requeue the task
 	ok, err = r.QueueTask(testCtx, schemas.TaskTypePullMetrics, "foo", "controller2")
-	assert.Equal(t, "", ok)
+	assert.False(t, ok)
 	assert.NoError(t, err)
 
-	// The keepalive of controller1 being expired, we should requeue the task
 	mr.FastForward(2 * time.Second)
 
 	ok, err = r.QueueTask(testCtx, schemas.TaskTypePullMetrics, "foo", "controller2")
-	assert.Equal(t, "OK", ok)
+	assert.True(t, ok)
 	assert.NoError(t, err)
 }
 

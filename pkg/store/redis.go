@@ -682,7 +682,7 @@ func (r *Redis) GetPipelineVariables(ctx context.Context, pipeline schemas.Pipel
 		}
 		var variables string
 
-		if err = msgpack.Unmarshal([]byte(marshalledVariables), variables); err != nil {
+		if err = msgpack.Unmarshal([]byte(marshalledVariables), &variables); err != nil {
 			return variables, err
 		}
 	}
@@ -720,49 +720,46 @@ func getRedisQueueKey(tt schemas.TaskType, taskUUID string) string {
 
 // QueueTask registers that we are queueing the task.
 // It returns true if it managed to schedule it, false if it was already scheduled.
-func (r *Redis) QueueTask(ctx context.Context, tt schemas.TaskType, taskUUID, processUUID string) (set string, err error) {
+func (r *Redis) QueueTask(ctx context.Context, tt schemas.TaskType, taskUUID, processUUID string) (bool, error) {
 	k := getRedisQueueKey(tt, taskUUID)
 
-	// First attempt: try to acquire the task using SET NX (only if key does not exist)
-	// This is the fast path and avoids unnecessary round trips in most cases
-	set, err = r.SetArgs(ctx, k, processUUID, redis.SetArgs{Mode: "NX"}).Result()
+	// First attempt: try to acquire the task using SET NX
+	set, err := r.SetArgs(ctx, k, processUUID, redis.SetArgs{Mode: "NX"}).Result()
 	if err != nil {
-		return "", err
+		return false, err
 	}
 	if set == "OK" {
-		// Successfully scheduled the task
-		return "OK", nil
+		return true, nil
 	}
 
-	// Slow path: the key already exists, we need to determine if we can take over
-	// Use WATCH to ensure atomicity between read and write operations
+	acquired := false
+
+	// Slow path: key already exists, determine if we can take over
 	err = r.Watch(ctx, func(tx *redis.Tx) error {
-		// Read current owner of the task
 		current, err := tx.Get(ctx, k).Result()
 		if err != nil {
 			return err
 		}
 
-		// If the task is already owned by this process, nothing to do
+		// Already owned by this process
 		if current == processUUID {
-			set = ""
+			acquired = false
 			return nil
 		}
 
-		// Check if the process that currently owns the task is still alive
+		// Check whether current owner is still alive
 		alive, err := r.KeepaliveExists(ctx, current)
 		if err != nil {
 			return err
 		}
 
-		// If the current owner is still alive, we must not override it
+		// Current owner still alive, cannot override
 		if alive {
-			set = ""
+			acquired = false
 			return nil
 		}
 
-		// The current owner is dead, we can safely take over the task
-		// Perform the update inside a transaction to avoid race conditions
+		// Current owner is dead, take over
 		_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
 			pipe.Set(ctx, k, processUUID, 0)
 			return nil
@@ -771,16 +768,14 @@ func (r *Redis) QueueTask(ctx context.Context, tt schemas.TaskType, taskUUID, pr
 			return err
 		}
 
-		// Successfully took ownership of the task
-		set = "OK"
+		acquired = true
 		return nil
 	}, k)
-
 	if err != nil {
-		return "", err
+		return false, err
 	}
 
-	return set, nil
+	return acquired, nil
 }
 
 // DequeueTask removes the task from the tracker.
