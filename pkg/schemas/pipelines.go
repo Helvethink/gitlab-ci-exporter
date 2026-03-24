@@ -158,3 +158,8 @@ func NewTestCase(gtc *goGitlab.PipelineTestCases) TestCase {
 		Status:        gtc.Status,
 	}
 }
+
+// Count Return pipelines size
+func (pipelines Pipelines) Count() int {
+	return len(pipelines)
+}
