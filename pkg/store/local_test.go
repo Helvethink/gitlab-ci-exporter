@@ -1,271 +1,369 @@
 package store
 
 import (
+	"context"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/helvethink/gitlab-ci-exporter/pkg/schemas"
 )
 
+func newTestLocalStore(t *testing.T) *Local {
+	t.Helper()
+
+	s, ok := NewLocalStore().(*Local)
+	require.True(t, ok)
+
+	return s
+}
+
+func TestLocalHasExpiredAlwaysFalse(t *testing.T) {
+	s := newTestLocalStore(t)
+	ctx := context.Background()
+
+	assert.False(t, s.HasProjectExpired(ctx, schemas.ProjectKey("p1")))
+	assert.False(t, s.HasEnvExpired(ctx, schemas.EnvironmentKey("e1")))
+	assert.False(t, s.HasRunnerExpired(ctx, schemas.RunnerKey("r1")))
+	assert.False(t, s.HasRefExpired(ctx, schemas.RefKey("ref1")))
+	assert.False(t, s.HasMetricExpired(ctx, schemas.MetricKey("m1")))
+}
+
 func TestLocalProjectFunctions(t *testing.T) {
+	s := newTestLocalStore(t)
+	ctx := context.Background()
+
 	p := schemas.NewProject("foo/bar")
-	p.OutputSparseStatusMetrics = false
+	p.Topics = "go,ci"
 
-	l := NewLocalStore()
-	assert.NoError(t, l.SetProject(testCtx, p))
+	assert.NoError(t, s.SetProject(ctx, p))
 
-	// Set project
-	projects, err := l.Projects(testCtx)
+	projects, err := s.Projects(ctx)
 	assert.NoError(t, err)
 	assert.Contains(t, projects, p.Key())
 	assert.Equal(t, p, projects[p.Key()])
 
-	// Project exists
-	exists, err := l.ProjectExists(testCtx, p.Key())
+	exists, err := s.ProjectExists(ctx, p.Key())
 	assert.NoError(t, err)
 	assert.True(t, exists)
 
-	// GetProject should succeed
-	newProject := schemas.NewProject("foo/bar")
-	assert.NoError(t, l.GetProject(testCtx, &newProject))
-	assert.Equal(t, p, newProject)
+	got := schemas.NewProject("foo/bar")
+	assert.NoError(t, s.GetProject(ctx, &got))
+	assert.Equal(t, p, got)
 
-	// Count
-	count, err := l.ProjectsCount(testCtx)
+	count, err := s.ProjectsCount(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), count)
 
-	// Delete project
-	assert.NoError(t, l.DelProject(testCtx, p.Key()))
-	projects, err = l.Projects(testCtx)
+	assert.NoError(t, s.DelProject(ctx, p.Key()))
+
+	projects, err = s.Projects(ctx)
 	assert.NoError(t, err)
 	assert.NotContains(t, projects, p.Key())
 
-	exists, err = l.ProjectExists(testCtx, p.Key())
+	exists, err = s.ProjectExists(ctx, p.Key())
 	assert.NoError(t, err)
 	assert.False(t, exists)
-
-	// GetProject should not update the var this time
-	newProject = schemas.NewProject("foo/bar")
-	assert.NoError(t, l.GetProject(testCtx, &newProject))
-	assert.NotEqual(t, p, newProject)
 }
 
 func TestLocalEnvironmentFunctions(t *testing.T) {
-	environment := schemas.Environment{
-		ProjectName: "foo",
+	s := newTestLocalStore(t)
+	ctx := context.Background()
+
+	env := schemas.Environment{
+		ProjectName: "foo/bar",
 		ID:          1,
+		Name:        "production",
+		ExternalURL: "https://example.com",
+		Available:   true,
 	}
 
-	l := NewLocalStore()
-	assert.NoError(t, l.SetEnvironment(testCtx, environment))
+	assert.NoError(t, s.SetEnvironment(ctx, env))
 
-	// Set project
-	environments, err := l.Environments(testCtx)
+	envs, err := s.Environments(ctx)
 	assert.NoError(t, err)
-	assert.Contains(t, environments, environment.Key())
-	assert.Equal(t, environment, environments[environment.Key()])
+	assert.Contains(t, envs, env.Key())
+	assert.Equal(t, env, envs[env.Key()])
 
-	// Environment exists
-	exists, err := l.EnvironmentExists(testCtx, environment.Key())
+	exists, err := s.EnvironmentExists(ctx, env.Key())
 	assert.NoError(t, err)
 	assert.True(t, exists)
 
-	// GetEnvironment should succeed
-	newEnvironment := schemas.Environment{
-		ProjectName: "foo",
-		ID:          1,
+	got := schemas.Environment{
+		ProjectName: "foo/bar",
+		Name:        "production",
 	}
-	assert.NoError(t, l.GetEnvironment(testCtx, &newEnvironment))
-	assert.Equal(t, environment, newEnvironment)
+	assert.NoError(t, s.GetEnvironment(ctx, &got))
+	assert.Equal(t, env, got)
 
-	// Count
-	count, err := l.EnvironmentsCount(testCtx)
+	count, err := s.EnvironmentsCount(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), count)
 
-	// Delete Environment
-	assert.NoError(t, l.DelEnvironment(testCtx, environment.Key()))
-	environments, err = l.Environments(testCtx)
-	assert.NoError(t, err)
-	assert.NotContains(t, environments, environment.Key())
+	assert.NoError(t, s.DelEnvironment(ctx, env.Key()))
 
-	exists, err = l.EnvironmentExists(testCtx, environment.Key())
+	envs, err = s.Environments(ctx)
+	assert.NoError(t, err)
+	assert.NotContains(t, envs, env.Key())
+
+	exists, err = s.EnvironmentExists(ctx, env.Key())
 	assert.NoError(t, err)
 	assert.False(t, exists)
+}
 
-	// GetEnvironment should not update the var this time
-	newEnvironment = schemas.Environment{
-		ProjectName: "foo",
-		ID:          1,
-		ExternalURL: "foo",
+func TestLocalRunnerFunctions(t *testing.T) {
+	s := newTestLocalStore(t)
+	ctx := context.Background()
+
+	runner := schemas.Runner{
+		ID:          123,
+		Description: "shared-runner",
+		Name:        "runner-01",
+		ProjectName: "foo/bar",
+		Online:      true,
+		Status:      "online",
+		TagList:     []string{"docker", "linux"},
 	}
-	assert.NoError(t, l.GetEnvironment(testCtx, &newEnvironment))
-	assert.NotEqual(t, environment, newEnvironment)
+
+	assert.NoError(t, s.SetRunner(ctx, runner))
+
+	runners, err := s.Runners(ctx)
+	assert.NoError(t, err)
+	assert.Contains(t, runners, runner.Key())
+	assert.Equal(t, runner, runners[runner.Key()])
+
+	exists, err := s.RunnerExists(ctx, runner.Key())
+	assert.NoError(t, err)
+	assert.True(t, exists)
+
+	got := schemas.Runner{ID: 123}
+	assert.NoError(t, s.GetRunner(ctx, &got))
+	assert.Equal(t, runner, got)
+
+	count, err := s.RunnersCount(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(1), count)
+
+	assert.NoError(t, s.DelRunner(ctx, runner.Key()))
+
+	runners, err = s.Runners(ctx)
+	assert.NoError(t, err)
+	assert.NotContains(t, runners, runner.Key())
+
+	exists, err = s.RunnerExists(ctx, runner.Key())
+	assert.NoError(t, err)
+	assert.False(t, exists)
 }
 
 func TestLocalRefFunctions(t *testing.T) {
+	s := newTestLocalStore(t)
+	ctx := context.Background()
+
 	p := schemas.NewProject("foo/bar")
-	p.Topics = "salty"
-	ref := schemas.NewRef(
-		p,
-		schemas.RefKindBranch,
-		"sweet",
-	)
+	p.Topics = "topic1"
 
-	// Set project
-	l := NewLocalStore()
-	assert.NoError(t, l.SetRef(testCtx, ref))
+	ref := schemas.NewRef(p, schemas.RefKindBranch, "main")
+	ref.LatestPipeline = schemas.Pipeline{
+		ID:        100,
+		Status:    "success",
+		Source:    "push",
+		Variables: `{"foo":"bar"}`,
+	}
 
-	projectsRefs, err := l.Refs(testCtx)
+	assert.NoError(t, s.SetRef(ctx, ref))
+
+	refs, err := s.Refs(ctx)
 	assert.NoError(t, err)
-	assert.Contains(t, projectsRefs, ref.Key())
-	assert.Equal(t, ref, projectsRefs[ref.Key()])
+	assert.Contains(t, refs, ref.Key())
+	assert.Equal(t, ref, refs[ref.Key()])
 
-	// Ref exists
-	exists, err := l.RefExists(testCtx, ref.Key())
+	exists, err := s.RefExists(ctx, ref.Key())
 	assert.NoError(t, err)
 	assert.True(t, exists)
 
-	// GetRef should succeed
-	newRef := schemas.Ref{
-		Project: schemas.NewProject("foo/bar"),
-		Kind:    schemas.RefKindBranch,
-		Name:    "sweet",
-	}
-	assert.NoError(t, l.GetRef(testCtx, &newRef))
-	assert.Equal(t, ref, newRef)
+	got := schemas.NewRef(p, schemas.RefKindBranch, "main")
+	assert.NoError(t, s.GetRef(ctx, &got))
+	assert.Equal(t, ref, got)
 
-	// Count
-	count, err := l.RefsCount(testCtx)
+	count, err := s.RefsCount(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), count)
 
-	// Delete Ref
-	assert.NoError(t, l.DelRef(testCtx, ref.Key()))
-	projectsRefs, err = l.Refs(testCtx)
-	assert.NoError(t, err)
-	assert.NotContains(t, projectsRefs, ref.Key())
+	assert.NoError(t, s.DelRef(ctx, ref.Key()))
 
-	exists, err = l.RefExists(testCtx, ref.Key())
+	refs, err = s.Refs(ctx)
+	assert.NoError(t, err)
+	assert.NotContains(t, refs, ref.Key())
+
+	exists, err = s.RefExists(ctx, ref.Key())
 	assert.NoError(t, err)
 	assert.False(t, exists)
-
-	// GetRef should not update the var this time
-	newRef = schemas.Ref{
-		Kind:    schemas.RefKindBranch,
-		Project: schemas.NewProject("foo/bar"),
-		Name:    "sweet",
-	}
-	assert.NoError(t, l.GetRef(testCtx, &newRef))
-	assert.NotEqual(t, ref, newRef)
 }
 
 func TestLocalMetricFunctions(t *testing.T) {
+	s := newTestLocalStore(t)
+	ctx := context.Background()
+
 	m := schemas.Metric{
 		Kind: schemas.MetricKindCoverage,
 		Labels: prometheus.Labels{
-			"foo": "bar",
+			"project":     "foo/bar",
+			"kind":        "branch",
+			"ref":         "main",
+			"source":      "push",
+			"variables":   `{"foo":"bar"}`,
+			"pipeline_id": "123",
+			"status":      "success",
 		},
-		Value: 5,
+		Value: 99.9,
 	}
 
-	l := NewLocalStore()
-	assert.NoError(t, l.SetMetric(testCtx, m))
+	assert.NoError(t, s.SetMetric(ctx, m))
 
-	// Set metric
-	metrics, err := l.Metrics(testCtx)
+	metrics, err := s.Metrics(ctx)
 	assert.NoError(t, err)
 	assert.Contains(t, metrics, m.Key())
 	assert.Equal(t, m, metrics[m.Key()])
 
-	// Metric exists
-	exists, err := l.MetricExists(testCtx, m.Key())
+	exists, err := s.MetricExists(ctx, m.Key())
 	assert.NoError(t, err)
 	assert.True(t, exists)
 
-	// GetMetric should succeed
-	newMetric := schemas.Metric{
+	got := schemas.Metric{
 		Kind: schemas.MetricKindCoverage,
 		Labels: prometheus.Labels{
-			"foo": "bar",
+			"project":     "foo/bar",
+			"kind":        "branch",
+			"ref":         "main",
+			"source":      "push",
+			"variables":   `{"foo":"bar"}`,
+			"pipeline_id": "123",
+			"status":      "success",
 		},
 	}
-	assert.NoError(t, l.GetMetric(testCtx, &newMetric))
-	assert.Equal(t, m, newMetric)
+	assert.NoError(t, s.GetMetric(ctx, &got))
+	assert.Equal(t, m, got)
 
-	// Count
-	count, err := l.MetricsCount(testCtx)
+	count, err := s.MetricsCount(ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), count)
 
-	// Delete Metric
-	_ = l.DelMetric(testCtx, m.Key())
-	metrics, err = l.Metrics(testCtx)
+	assert.NoError(t, s.DelMetric(ctx, m.Key()))
+
+	metrics, err = s.Metrics(ctx)
 	assert.NoError(t, err)
 	assert.NotContains(t, metrics, m.Key())
 
-	exists, err = l.MetricExists(testCtx, m.Key())
+	exists, err = s.MetricExists(ctx, m.Key())
+	assert.NoError(t, err)
+	assert.False(t, exists)
+}
+
+func TestLocalPipelineFunctions(t *testing.T) {
+	s := newTestLocalStore(t)
+	ctx := context.Background()
+
+	pipeline := schemas.Pipeline{
+		ID:        77,
+		Coverage:  85.5,
+		Source:    "push",
+		Status:    "success",
+		Variables: `{"foo":"bar"}`,
+	}
+
+	assert.NoError(t, s.SetPipeline(ctx, pipeline))
+
+	exists, err := s.PipelineExists(ctx, pipeline.Key())
+	assert.NoError(t, err)
+	assert.True(t, exists)
+
+	got := schemas.Pipeline{ID: 77}
+	assert.NoError(t, s.GetPipeline(ctx, &got))
+	assert.Equal(t, pipeline, got)
+}
+
+func TestLocalPipelineVariablesFunctions(t *testing.T) {
+	s := newTestLocalStore(t)
+	ctx := context.Background()
+
+	pipeline := schemas.Pipeline{ID: 88}
+	vars := `{"ENV":"prod"}`
+
+	exists, err := s.PipelineVariablesExists(ctx, pipeline)
 	assert.NoError(t, err)
 	assert.False(t, exists)
 
-	// GetMetric should not update the var this time
-	newMetric = schemas.Metric{
-		Kind: schemas.MetricKindCoverage,
-		Labels: prometheus.Labels{
-			"foo": "bar",
-		},
-	}
-	assert.NoError(t, l.GetMetric(testCtx, &newMetric))
-	assert.NotEqual(t, m, newMetric)
+	value, err := s.GetPipelineVariables(ctx, pipeline)
+	assert.NoError(t, err)
+	assert.Equal(t, "", value)
+
+	assert.NoError(t, s.SetPipelineVariables(ctx, pipeline, vars))
+
+	exists, err = s.PipelineVariablesExists(ctx, pipeline)
+	assert.NoError(t, err)
+	assert.True(t, exists)
+
+	value, err = s.GetPipelineVariables(ctx, pipeline)
+	assert.NoError(t, err)
+	assert.Equal(t, vars, value)
 }
 
 func TestLocalQueueTask(t *testing.T) {
-	l := NewLocalStore()
-	ok, err := l.QueueTask(testCtx, schemas.TaskTypePullMetrics, "foo", "")
+	s := newTestLocalStore(t)
+	ctx := context.Background()
+
+	ok, err := s.QueueTask(ctx, schemas.TaskTypePullMetrics, "task-1", "")
+	assert.NoError(t, err)
 	assert.True(t, ok)
-	assert.NoError(t, err)
 
-	ok, err = l.QueueTask(testCtx, schemas.TaskTypePullMetrics, "foo", "")
-	assert.False(t, ok)
+	ok, err = s.QueueTask(ctx, schemas.TaskTypePullMetrics, "task-1", "")
 	assert.NoError(t, err)
-
-	_, _ = l.QueueTask(testCtx, schemas.TaskTypePullMetrics, "bar", "")
-	ok, err = l.QueueTask(testCtx, schemas.TaskTypePullMetrics, "bar", "")
 	assert.False(t, ok)
-	assert.NoError(t, err)
 }
 
-func TestLocalDequeueTask(t *testing.T) {
-	l := NewLocalStore()
-	_, _ = l.QueueTask(testCtx, schemas.TaskTypePullMetrics, "foo", "")
-	assert.Equal(t, uint64(0), l.(*Local).executedTasksCount)
-	assert.NoError(t, l.DequeueTask(testCtx, schemas.TaskTypePullMetrics, "foo"))
-	assert.Equal(t, uint64(1), l.(*Local).executedTasksCount)
+func TestLocalDequeueTaskAndExecutedCount(t *testing.T) {
+	s := newTestLocalStore(t)
+	ctx := context.Background()
+
+	ok, err := s.QueueTask(ctx, schemas.TaskTypePullMetrics, "task-1", "")
+	assert.NoError(t, err)
+	assert.True(t, ok)
+
+	count, err := s.ExecutedTasksCount(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(0), count)
+
+	assert.NoError(t, s.DequeueTask(ctx, schemas.TaskTypePullMetrics, "task-1"))
+
+	count, err = s.ExecutedTasksCount(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), count)
+
+	queued, err := s.CurrentlyQueuedTasksCount(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(0), queued)
 }
 
 func TestLocalCurrentlyQueuedTasksCount(t *testing.T) {
-	l := NewLocalStore()
-	_, _ = l.QueueTask(testCtx, schemas.TaskTypePullMetrics, "foo", "")
-	_, _ = l.QueueTask(testCtx, schemas.TaskTypePullMetrics, "bar", "")
-	_, _ = l.QueueTask(testCtx, schemas.TaskTypePullMetrics, "baz", "")
+	s := newTestLocalStore(t)
+	ctx := context.Background()
 
-	count, _ := l.CurrentlyQueuedTasksCount(testCtx)
+	_, err := s.QueueTask(ctx, schemas.TaskTypePullMetrics, "task-1", "")
+	assert.NoError(t, err)
+	_, err = s.QueueTask(ctx, schemas.TaskTypePullMetrics, "task-2", "")
+	assert.NoError(t, err)
+	_, err = s.QueueTask(ctx, schemas.TaskTypeGarbageCollectEnvironments, "task-3", "")
+	assert.NoError(t, err)
+
+	count, err := s.CurrentlyQueuedTasksCount(ctx)
+	assert.NoError(t, err)
 	assert.Equal(t, uint64(3), count)
-	assert.NoError(t, l.DequeueTask(testCtx, schemas.TaskTypePullMetrics, "foo"))
-	count, _ = l.CurrentlyQueuedTasksCount(testCtx)
+
+	assert.NoError(t, s.DequeueTask(ctx, schemas.TaskTypePullMetrics, "task-1"))
+
+	count, err = s.CurrentlyQueuedTasksCount(ctx)
+	assert.NoError(t, err)
 	assert.Equal(t, uint64(2), count)
-}
-
-func TestLocalExecutedTasksCount(t *testing.T) {
-	l := NewLocalStore()
-	_, _ = l.QueueTask(testCtx, schemas.TaskTypePullMetrics, "foo", "")
-	_, _ = l.QueueTask(testCtx, schemas.TaskTypePullMetrics, "bar", "")
-	_ = l.DequeueTask(testCtx, schemas.TaskTypePullMetrics, "foo")
-	_ = l.DequeueTask(testCtx, schemas.TaskTypePullMetrics, "foo")
-
-	count, _ := l.ExecutedTasksCount(testCtx)
-	assert.Equal(t, uint64(1), count)
 }
