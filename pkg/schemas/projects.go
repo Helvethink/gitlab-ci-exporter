@@ -26,6 +26,11 @@ func (p Project) Key() ProjectKey {
 	return ProjectKey(strconv.Itoa(int(crc32.ChecksumIEEE([]byte(p.Name)))))
 }
 
+// Count returns the number of projects in the Projects map.
+func (projects Projects) Count() int {
+	return len(projects)
+}
+
 // NewProject creates a new Project instance with the given name.
 func NewProject(name string) Project {
 	// Create a new Project by embedding a new config.Project and initializing any additional fields
