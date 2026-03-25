@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"strconv"
 	"strings"
 
@@ -72,12 +71,12 @@ func (c *Controller) UpdateRunner(ctx context.Context, runner *schemas.Runner) e
 		return err
 	}
 
-	// Update the local runner fields with the latest data
-	runner.Paused = pulledRunner.Paused
-	runner.ContactedAt = pulledRunner.ContactedAt
-	runner.MaintenanceNote = pulledRunner.MaintenanceNote
+	pulledRunner.ProjectName = runner.ProjectName
+	pulledRunner.OutputSparseStatusMetrics = runner.OutputSparseStatusMetrics
+	*runner = pulledRunner
 
 	log.WithFields(projectRefLogFields).Info("update runner metrics")
+
 	// Save the updated runner back to the store
 	return c.Store.SetRunner(ctx, *runner)
 }
@@ -94,32 +93,45 @@ func (c *Controller) ProcessRunnerMetrics(ctx context.Context, runner schemas.Ru
 	}
 
 	// Initialize labels from the reference default labels and add job-specific labels
-	groups := runner.Groups
-	GroupsOut, err := json.Marshal(groups)
-	if err != nil {
-		return nil
+	groupNames := make([]string, 0, len(runner.Groups))
+	for _, g := range runner.Groups {
+		if g.Name != "" {
+			groupNames = append(groupNames, g.Name)
+		}
 	}
-	projects := runner.Projects
-	projectsOut, err := json.Marshal(projects)
-	if err != nil {
-		return nil
+
+	projectNames := make([]string, 0, len(runner.Projects))
+	for _, p := range runner.Projects {
+		switch {
+		case p.PathWithNamespace != "":
+			projectNames = append(projectNames, p.PathWithNamespace)
+		case p.NameWithNamespace != "":
+			projectNames = append(projectNames, p.NameWithNamespace)
+		case p.Name != "":
+			projectNames = append(projectNames, p.Name)
+		}
 	}
+
 	tags := strings.Join(runner.TagList, ",")
 
 	labels := runner.DefaultLabelsValues()
 	labels["runner_name"] = runner.Name
-	labels["runner_id"] = strconv.Itoa(runner.ID)                                       // The unique identifier for the environment
-	labels["is_shared"] = strconv.FormatBool(runner.IsShared)                           // The kind of the latest deployment's reference
-	labels["runner_type"] = runner.RunnerType                                           // The name of the latest deployment's reference
-	labels["online"] = strconv.FormatBool(runner.Online)                                // The short ID of the current commit
-	labels["tag_list"] = tags                                                           // Placeholder for the latest commit short ID (empty in this context)
-	labels["active"] = strconv.FormatBool(runner.Paused)                                // The availability status of the environment
-	labels["runner_maintenance_note"] = runner.MaintenanceNote                          // Maintenance note label
-	labels["contacted_at"] = strconv.FormatInt(runner.ContactedAt.UTC().UnixNano(), 10) // Last contact with gitlab server
-	labels["status"] = runner.Status                                                    // The status of the runner
-	labels["paused"] = strconv.FormatBool(runner.Paused)                                // Define if the runner is paused
-	labels["runner_groups"] = string(GroupsOut)                                         // The groups assigned to this runner
-	labels["runner_projects"] = string(projectsOut)                                     // The projects assigned to this runner
+	labels["runner_id"] = strconv.Itoa(runner.ID)               // The unique identifier for the environment
+	labels["is_shared"] = strconv.FormatBool(runner.IsShared)   // The kind of the latest deployment's reference
+	labels["runner_type"] = runner.RunnerType                   // The name of the latest deployment's reference
+	labels["online"] = strconv.FormatBool(runner.Online)        // The short ID of the current commit
+	labels["tag_list"] = tags                                   // Placeholder for the latest commit short ID (empty in this context)
+	labels["active"] = strconv.FormatBool(runner.Paused)        // The availability status of the environment
+	labels["runner_maintenance_note"] = runner.MaintenanceNote  // Maintenance note label
+	labels["status"] = runner.Status                            // The status of the runner
+	labels["paused"] = strconv.FormatBool(runner.Paused)        // Define if the runner is paused
+	labels["runner_groups"] = strings.Join(groupNames, ",")     // The groups assigned to this runner
+	labels["runner_projects"] = strings.Join(projectNames, ",") // The projects assigned to this runner
+	if runner.ContactedAt != nil {
+		labels["contacted_at"] = strconv.FormatInt(runner.ContactedAt.UTC().UnixNano(), 10) // Last contact with gitlab server
+	} else {
+		labels["contacted_at"] = ""
+	}
 
 	// Log trace info indicating that job metrics are being processed
 	log.WithFields(projectRefLogFields).Info("processing runner metrics")
