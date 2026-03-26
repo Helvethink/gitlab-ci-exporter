@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -12,6 +13,8 @@ import (
 
 	"github.com/helvethink/gitlab-ci-exporter/pkg/schemas"
 )
+
+var testCtx = context.Background()
 
 func newTestRedisStore(t *testing.T) (mr *miniredis.Miniredis, r *Redis) {
 	mr, err := miniredis.Run()

@@ -1,7 +1,6 @@
 package schemas
 
 import (
-	"encoding/json"
 	"hash/crc32"
 	"strconv"
 	"strings"
@@ -114,12 +113,6 @@ func TestRunnerInformationLabelsValues(t *testing.T) {
 	got := r.InformationLabelsValues()
 	require.NotNil(t, got)
 
-	expectedGroups, err := json.Marshal(r.Groups)
-	require.NoError(t, err)
-
-	expectedProjects, err := json.Marshal(r.Projects)
-	require.NoError(t, err)
-
 	assert.Equal(t, "group/project", got["project"])
 	assert.Equal(t, "shared-runner-01", got["runner_description"])
 	assert.Equal(t, "runner-name", got["runner_name"])
@@ -130,31 +123,36 @@ func TestRunnerInformationLabelsValues(t *testing.T) {
 	assert.Equal(t, strings.Join(r.TagList, ","), got["tag_list"])
 	assert.Equal(t, "true", got["active"]) // matches current implementation: active = Paused
 	assert.Equal(t, "online", got["status"])
-	assert.Equal(t, string(expectedGroups), got["runner_groups"])
-	assert.Equal(t, string(expectedProjects), got["runner_projects"])
+	assert.Equal(t, "group1", got["runner_groups"])
+	assert.Equal(t, "group/project1", got["runner_projects"])
 }
 
 func TestRunnerInformationLabelsValues_EmptySlices(t *testing.T) {
 	r := Runner{
-		ID:          7,
-		Description: "runner-empty",
 		ProjectName: "group/empty",
+		Description: "runner-empty",
+		ID:          7,
 		Name:        "runner-empty-name",
+		Online:      false,
 		Status:      "offline",
+		IsShared:    false,
+		Paused:      false,
 		TagList:     []string{},
 		Projects:    nil,
 		Groups:      nil,
 	}
 
 	got := r.InformationLabelsValues()
-	require.NotNil(t, got)
 
 	assert.Equal(t, "group/empty", got["project"])
 	assert.Equal(t, "runner-empty", got["runner_description"])
 	assert.Equal(t, "runner-empty-name", got["runner_name"])
 	assert.Equal(t, "7", got["runner_id"])
+	assert.Equal(t, "false", got["is_shared"])
+	assert.Equal(t, "false", got["online"])
 	assert.Equal(t, "", got["tag_list"])
+	assert.Equal(t, "false", got["active"])
 	assert.Equal(t, "offline", got["status"])
-	assert.Equal(t, "null", got["runner_groups"])
-	assert.Equal(t, "null", got["runner_projects"])
+	assert.Equal(t, "", got["runner_groups"])
+	assert.Equal(t, "", got["runner_projects"])
 }
