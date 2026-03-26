@@ -63,13 +63,13 @@ func runnerTagNames(runner schemas.Runner) []string {
 
 // deleteRunnerMetrics removes all metrics currently stored for a given runner ID.
 // This ensures the next export represents the latest snapshot only.
-func (c *Controller) deleteRunnerMetrics(ctx context.Context, runnerID int) error {
+func (c *Controller) deleteRunnerMetrics(ctx context.Context, runnerID int64) error {
 	metrics, err := c.Store.Metrics(ctx)
 	if err != nil {
 		return err
 	}
 
-	runnerIDStr := strconv.Itoa(runnerID)
+	runnerIDStr := strconv.FormatInt(runnerID, 10)
 
 	for key, metric := range metrics {
 		if metric.Labels["runner_id"] != runnerIDStr {
@@ -193,7 +193,7 @@ func (c *Controller) ProcessRunnerMetrics(ctx context.Context, runner schemas.Ru
 	projectNames := runnerProjectNames(runner)
 	tagNames := runnerTagNames(runner)
 
-	runnerID := strconv.Itoa(runner.ID)
+	runnerID := strconv.FormatInt(runner.ID, 10)
 
 	// Export one global runner info metric per runner.
 	infoLabels := map[string]string{

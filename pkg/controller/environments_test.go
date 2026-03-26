@@ -55,7 +55,7 @@ func TestUpdateEnvironment(t *testing.T) {
 
 	env := schemas.Environment{
 		ProjectName: "group/project",
-		ID:          7,
+		ID:          int64(7),
 		Name:        "production",
 	}
 
@@ -64,7 +64,7 @@ func TestUpdateEnvironment(t *testing.T) {
 
 	assert.True(t, env.Available)
 	assert.Equal(t, "https://prod.example.com", env.ExternalURL)
-	assert.Equal(t, 321, env.LatestDeployment.JobID)
+	assert.Equal(t, int64(321), env.LatestDeployment.JobID)
 	assert.Equal(t, schemas.RefKindBranch, env.LatestDeployment.RefKind)
 	assert.Equal(t, "main", env.LatestDeployment.RefName)
 	assert.Equal(t, "alice", env.LatestDeployment.Username)
@@ -130,7 +130,7 @@ func TestPullEnvironmentsFromProject(t *testing.T) {
 	err = c.Store.GetEnvironment(ctx, &storedEnv)
 	require.NoError(t, err)
 
-	assert.Equal(t, 7, storedEnv.ID)
+	assert.Equal(t, int64(7), storedEnv.ID)
 	assert.True(t, storedEnv.Available)
 	assert.Equal(t, "https://prod.example.com", storedEnv.ExternalURL)
 

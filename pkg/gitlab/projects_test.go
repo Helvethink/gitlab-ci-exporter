@@ -58,7 +58,7 @@ func TestGetProject(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, p)
 
-	assert.Equal(t, 101, p.ID)
+	assert.Equal(t, int64(101), p.ID)
 	assert.Equal(t, "group/project", p.PathWithNamespace)
 	assert.Equal(t, "project", p.Name)
 }

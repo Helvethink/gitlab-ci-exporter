@@ -106,12 +106,12 @@ func (c *Client) GetProjectRunners(ctx context.Context, p schemas.Project) (runn
 
 // GetRunner retrieves detailed information about a specific runner
 // in a GitLab project, including its latest deployment data if available.
-func (c *Client) GetRunner(ctx context.Context, project string, runnerID int) (runner schemas.Runner, err error) {
+func (c *Client) GetRunner(ctx context.Context, project string, runnerID int64) (runner schemas.Runner, err error) {
 	// Start an OpenTelemetry span for tracing this method call
 	ctx, span := otel.Tracer(tracerName).Start(ctx, "gitlab:GetRunner")
 	defer span.End()
 	span.SetAttributes(attribute.String("project_name", project))
-	span.SetAttributes(attribute.Int("runner_id", runnerID))
+	span.SetAttributes(attribute.Int64("runner_id", runnerID))
 
 	// Initialize the return Runner struct with project name and runner ID
 	runner = schemas.Runner{
@@ -164,21 +164,47 @@ func (c *Client) GetRunner(ctx context.Context, project string, runnerID int) (r
 			}).
 			Debug("no group found for this runner")
 	} else {
-		runner.Groups = []struct {
-			ID     int
+		runner.Groups = make([]struct {
+			ID     int64
 			Name   string
 			WebURL string
-		}(r.Groups)
+		}, 0, len(r.Groups))
+		for _, g := range r.Groups {
+			runner.Groups = append(runner.Groups, struct {
+				ID     int64
+				Name   string
+				WebURL string
+			}{
+				ID:     g.ID,
+				Name:   g.Name,
+				WebURL: g.WebURL,
+			})
+		}
 	}
 
 	if r.Projects != nil {
-		runner.Projects = []struct {
-			ID                int
+		runner.Projects = make([]struct {
+			ID                int64
 			Name              string
 			NameWithNamespace string
 			Path              string
 			PathWithNamespace string
-		}(r.Projects)
+		}, 0, len(r.Projects))
+		for _, p := range r.Projects {
+			runner.Projects = append(runner.Projects, struct {
+				ID                int64
+				Name              string
+				NameWithNamespace string
+				Path              string
+				PathWithNamespace string
+			}{
+				ID:                p.ID,
+				Name:              p.Name,
+				NameWithNamespace: p.NameWithNamespace,
+				Path:              p.Path,
+				PathWithNamespace: p.PathWithNamespace,
+			})
+		}
 	}
 	return
 }

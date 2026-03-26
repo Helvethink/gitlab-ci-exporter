@@ -157,7 +157,7 @@ func TestGetRunner_FullDetails(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "group/project", got.ProjectName)
-	assert.Equal(t, 123, got.ID)
+	assert.Equal(t, int64(123), got.ID)
 	assert.Equal(t, "runner-123", got.Name)
 	assert.Equal(t, "Main shared runner", got.Description)
 	assert.True(t, got.Paused)
@@ -173,15 +173,15 @@ func TestGetRunner_FullDetails(t *testing.T) {
 	assert.True(t, got.RunUntagged)
 	assert.False(t, got.Locked)
 	assert.Equal(t, "not_protected", got.AccessLevel)
-	assert.Equal(t, 3600, got.MaximumTimeout)
+	assert.Equal(t, int64(3600), got.MaximumTimeout)
 
 	require.Len(t, got.Groups, 1)
-	assert.Equal(t, 10, got.Groups[0].ID)
+	assert.Equal(t, int64(10), got.Groups[0].ID)
 	assert.Equal(t, "group-a", got.Groups[0].Name)
 	assert.Equal(t, "https://gitlab.example.com/groups/group-a", got.Groups[0].WebURL)
 
 	require.Len(t, got.Projects, 1)
-	assert.Equal(t, 20, got.Projects[0].ID)
+	assert.Equal(t, int64(20), got.Projects[0].ID)
 	assert.Equal(t, "project-a", got.Projects[0].Name)
 	assert.Equal(t, "group-a/project-a", got.Projects[0].NameWithNamespace)
 	assert.Equal(t, "project-a", got.Projects[0].Path)
@@ -229,7 +229,7 @@ func TestGetRunner_NoGroups_StillReturnsDetails(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "group/project", got.ProjectName)
-	assert.Equal(t, 456, got.ID)
+	assert.Equal(t, int64(456), got.ID)
 	assert.Equal(t, "runner-456", got.Name)
 	assert.Equal(t, "Runner without groups", got.Description)
 	assert.False(t, got.Paused)
@@ -245,12 +245,12 @@ func TestGetRunner_NoGroups_StillReturnsDetails(t *testing.T) {
 	assert.False(t, got.RunUntagged)
 	assert.True(t, got.Locked)
 	assert.Equal(t, "ref_protected", got.AccessLevel)
-	assert.Equal(t, 1800, got.MaximumTimeout)
+	assert.Equal(t, int64(1800), got.MaximumTimeout)
 
 	assert.Nil(t, got.Groups)
 
 	require.Len(t, got.Projects, 1)
-	assert.Equal(t, 30, got.Projects[0].ID)
+	assert.Equal(t, int64(30), got.Projects[0].ID)
 	assert.Equal(t, "project-b", got.Projects[0].Name)
 	assert.Equal(t, "group-b/project-b", got.Projects[0].NameWithNamespace)
 	assert.Equal(t, "project-b", got.Projects[0].Path)

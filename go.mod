@@ -29,7 +29,7 @@ require (
 	github.com/vmihailenco/taskq/redisq/v4 v4.0.0-beta.4
 	github.com/vmihailenco/taskq/v4 v4.0.0-beta.4
 	github.com/xeonx/timeago v1.0.0-rc5
-	gitlab.com/gitlab-org/api/client-go v0.148.1
+	gitlab.com/gitlab-org/api/client-go v1.46.0
 	go.openly.dev/pointy v1.3.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.66.0
 	go.opentelemetry.io/otel v1.42.0
@@ -37,7 +37,7 @@ require (
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.42.0
 	go.opentelemetry.io/otel/sdk v1.42.0
 	go.opentelemetry.io/otel/trace v1.42.0
-	golang.org/x/exp v0.0.0-20250811191247-51f88131bc50
+	golang.org/x/exp v0.0.0-20250813145105-42675adae3e6
 	golang.org/x/mod v0.33.0
 	golang.org/x/oauth2 v0.35.0
 	golang.org/x/time v0.15.0
@@ -71,7 +71,7 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
-	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.28.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-retryablehttp v0.7.8 // indirect

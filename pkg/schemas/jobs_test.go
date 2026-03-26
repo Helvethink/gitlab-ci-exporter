@@ -57,14 +57,14 @@ func TestNewJob(t *testing.T) {
 
 	got := NewJob(gj)
 
-	assert.Equal(t, 101, got.ID)
+	assert.Equal(t, int64(101), got.ID)
 	assert.Equal(t, "unit-tests", got.Name)
 	assert.Equal(t, "test", got.Stage)
 	assert.Equal(t, float64(expectedCreatedAt.Unix()), got.Timestamp)
 	assert.Equal(t, 42.5, got.DurationSeconds)
 	assert.Equal(t, 3.2, got.QueuedDurationSeconds)
 	assert.Equal(t, "success", got.Status)
-	assert.Equal(t, 999, got.PipelineID)
+	assert.Equal(t, int64(999), got.PipelineID)
 	assert.Equal(t, "docker,linux", got.TagList)
 	assert.Equal(t, 400.0, got.ArtifactSize)
 	assert.Equal(t, "", got.FailureReason)
@@ -123,14 +123,14 @@ func TestNewJob_EmptyArtifactsAndTags(t *testing.T) {
 
 	got := NewJob(gj)
 
-	assert.Equal(t, 103, got.ID)
+	assert.Equal(t, int64(103), got.ID)
 	assert.Equal(t, "deploy", got.Name)
 	assert.Equal(t, "deploy", got.Stage)
 	assert.Equal(t, float64(expectedCreatedAt.Unix()), got.Timestamp)
 	assert.Equal(t, 5.0, got.DurationSeconds)
 	assert.Equal(t, 0.5, got.QueuedDurationSeconds)
 	assert.Equal(t, "failed", got.Status)
-	assert.Equal(t, 1001, got.PipelineID)
+	assert.Equal(t, int64(1001), got.PipelineID)
 	assert.Equal(t, "", got.TagList)
 	assert.Equal(t, 0.0, got.ArtifactSize)
 	assert.Equal(t, "script_failure", got.FailureReason)

@@ -34,7 +34,7 @@ func TestNewPipeline_WithDetailedStatus(t *testing.T) {
 
 	got := NewPipeline(context.Background(), gp)
 
-	assert.Equal(t, 42, got.ID)
+	assert.Equal(t, int64(42), got.ID)
 	assert.Equal(t, 87.5, got.Coverage)
 	assert.Equal(t, float64(now.Unix()), got.Timestamp)
 	assert.Equal(t, 120.0, got.DurationSeconds)
@@ -59,7 +59,7 @@ func TestNewPipeline_WithoutDetailedStatus_UsesStatus(t *testing.T) {
 
 	got := NewPipeline(context.Background(), gp)
 
-	assert.Equal(t, 7, got.ID)
+	assert.Equal(t, int64(7), got.ID)
 	assert.Equal(t, 92.1, got.Coverage)
 	assert.Equal(t, float64(now.Unix()), got.Timestamp)
 	assert.Equal(t, 30.0, got.DurationSeconds)
@@ -80,7 +80,7 @@ func TestNewPipeline_WithInvalidCoverage_ReturnsZeroCoverage(t *testing.T) {
 
 	got := NewPipeline(context.Background(), gp)
 
-	assert.Equal(t, 9, got.ID)
+	assert.Equal(t, int64(9), got.ID)
 	assert.Equal(t, 0.0, got.Coverage)
 	assert.Equal(t, 0.0, got.Timestamp)
 	assert.Equal(t, 10.0, got.DurationSeconds)
@@ -102,7 +102,7 @@ func TestNewPipeline_WithEmptyCoverageAndNilUpdatedAt(t *testing.T) {
 
 	got := NewPipeline(context.Background(), gp)
 
-	assert.Equal(t, 11, got.ID)
+	assert.Equal(t, int64(11), got.ID)
 	assert.Equal(t, 0.0, got.Coverage)
 	assert.Equal(t, 0.0, got.Timestamp)
 	assert.Equal(t, 0.0, got.DurationSeconds)
@@ -156,11 +156,11 @@ func TestNewTestSuite(t *testing.T) {
 
 	assert.Equal(t, "suite-1", got.Name)
 	assert.Equal(t, 12.5, got.TotalTime)
-	assert.Equal(t, 4, got.TotalCount)
-	assert.Equal(t, 2, got.SuccessCount)
-	assert.Equal(t, 1, got.FailedCount)
-	assert.Equal(t, 1, got.SkippedCount)
-	assert.Equal(t, 0, got.ErrorCount)
+	assert.Equal(t, int64(4), got.TotalCount)
+	assert.Equal(t, int64(2), got.SuccessCount)
+	assert.Equal(t, int64(1), got.FailedCount)
+	assert.Equal(t, int64(1), got.SkippedCount)
+	assert.Equal(t, int64(0), got.ErrorCount)
 
 	require.Len(t, got.TestCases, 2)
 	assert.Equal(t, "TestA", got.TestCases[0].Name)
@@ -223,11 +223,11 @@ func TestNewTestReport(t *testing.T) {
 	got := NewTestReport(gtr)
 
 	assert.Equal(t, 20.0, got.TotalTime)
-	assert.Equal(t, 6, got.TotalCount)
-	assert.Equal(t, 4, got.SuccessCount)
-	assert.Equal(t, 1, got.FailedCount)
-	assert.Equal(t, 1, got.SkippedCount)
-	assert.Equal(t, 0, got.ErrorCount)
+	assert.Equal(t, int64(6), got.TotalCount)
+	assert.Equal(t, int64(4), got.SuccessCount)
+	assert.Equal(t, int64(1), got.FailedCount)
+	assert.Equal(t, int64(1), got.SkippedCount)
+	assert.Equal(t, int64(0), got.ErrorCount)
 
 	require.Len(t, got.TestSuites, 2)
 

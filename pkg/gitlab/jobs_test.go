@@ -113,11 +113,11 @@ func TestListPipelineJobs_Paginates(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, jobs, 2)
 
-	assert.Equal(t, 101, jobs[0].ID)
+	assert.Equal(t, int64(101), jobs[0].ID)
 	assert.Equal(t, "build", jobs[0].Name)
 	assert.Equal(t, 100.0, jobs[0].ArtifactSize)
 
-	assert.Equal(t, 102, jobs[1].ID)
+	assert.Equal(t, int64(102), jobs[1].ID)
 	assert.Equal(t, "test", jobs[1].Name)
 	assert.Equal(t, "script_failure", jobs[1].FailureReason)
 }
@@ -152,8 +152,8 @@ func TestListPipelineBridges_Paginates(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, bridges, 2)
 
-	assert.Equal(t, 1, bridges[0].ID)
-	assert.Equal(t, 2, bridges[1].ID)
+	assert.Equal(t, int64(1), bridges[0].ID)
+	assert.Equal(t, int64(2), bridges[1].ID)
 }
 
 func TestListPipelineChildJobs(t *testing.T) {
@@ -215,9 +215,9 @@ func TestListPipelineChildJobs(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, jobs, 1)
 
-	assert.Equal(t, 201, jobs[0].ID)
+	assert.Equal(t, int64(201), jobs[0].ID)
 	assert.Equal(t, "child-job", jobs[0].Name)
-	assert.Equal(t, 2001, jobs[0].PipelineID)
+	assert.Equal(t, int64(2001), jobs[0].PipelineID)
 }
 
 func TestListRefPipelineJobs_WithChildPipelinesEnabled(t *testing.T) {

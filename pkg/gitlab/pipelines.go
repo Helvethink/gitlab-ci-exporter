@@ -18,14 +18,14 @@ import (
 )
 
 // GetRefPipeline retrieves a specific pipeline by ID for a given ref (branch, tag, or MR)
-func (c *Client) GetRefPipeline(ctx context.Context, ref schemas.Ref, pipelineID int) (p schemas.Pipeline, err error) {
+func (c *Client) GetRefPipeline(ctx context.Context, ref schemas.Ref, pipelineID int64) (p schemas.Pipeline, err error) {
 	ctx, span := otel.Tracer(tracerName).Start(ctx, "gitlab:GetRefPipeline")
 	defer span.End()
 
 	// Add attributes for observability
 	span.SetAttributes(attribute.String("project_name", ref.Project.Name))
 	span.SetAttributes(attribute.String("ref_name", ref.Name))
-	span.SetAttributes(attribute.Int("pipeline_id", pipelineID))
+	span.SetAttributes(attribute.Int64("pipeline_id", pipelineID))
 
 	c.rateLimit(ctx)
 
@@ -355,7 +355,7 @@ func (c *Client) GetRefPipelineTestReport(ctx context.Context, ref schemas.Ref) 
 	// Internal type to keep track of pipelines to process
 	type pipelineDef struct {
 		projectNameOrID string
-		pipelineID      int
+		pipelineID      int64
 	}
 
 	var currentPipeline pipelineDef
@@ -421,7 +421,7 @@ func (c *Client) GetRefPipelineTestReport(ctx context.Context, ref schemas.Ref) 
 				}
 
 				childPipelines = append(childPipelines, pipelineDef{
-					projectNameOrID: strconv.Itoa(foundBridge.DownstreamPipeline.ProjectID),
+					projectNameOrID: strconv.FormatInt(foundBridge.DownstreamPipeline.ProjectID, 10),
 					pipelineID:      foundBridge.DownstreamPipeline.ID,
 				})
 			}

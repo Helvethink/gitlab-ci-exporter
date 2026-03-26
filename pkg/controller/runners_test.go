@@ -78,7 +78,7 @@ func TestUniqueSortedNonEmpty(t *testing.T) {
 func TestRunnerGroupNames(t *testing.T) {
 	runner := schemas.Runner{
 		Groups: []struct {
-			ID     int
+			ID     int64
 			Name   string
 			WebURL string
 		}{
@@ -96,7 +96,7 @@ func TestRunnerGroupNames(t *testing.T) {
 func TestRunnerProjectNames(t *testing.T) {
 	runner := schemas.Runner{
 		Projects: []struct {
-			ID                int
+			ID                int64
 			Name              string
 			NameWithNamespace string
 			Path              string
