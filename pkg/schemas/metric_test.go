@@ -146,40 +146,14 @@ func TestMetricKey_RunnerMetric(t *testing.T) {
 	m := Metric{
 		Kind: MetricKindRunner,
 		Labels: prometheus.Labels{
-			"project":                 "group/project",
-			"kind":                    "runner",
-			"runner_id":               "12",
-			"runner_description":      "shared-runner",
-			"runner_groups":           `[{"id":1,"name":"group1"}]`,
-			"runner_projects":         `[{"id":2,"name":"project1"}]`,
-			"runner_maintenance_note": "maintenance",
-			"contacted_at":            "2026-03-24T10:00:00Z",
-			"paused":                  "false",
-			"runner_type":             "instance_type",
-			"tag_list":                "docker,linux",
-			"is_shared":               "true",
-			"active":                  "true",
+			"runner_id": "101",
 		},
-		Value: 1,
 	}
 
-	expectedRaw := strconv.Itoa(int(MetricKindRunner)) + fmt.Sprintf("%v", []string{
-		"group/project",
-		"runner",
-		"12",
-		"shared-runner",
-		`[{"id":1,"name":"group1"}]`,
-		`[{"id":2,"name":"project1"}]`,
-		"maintenance",
-		"2026-03-24T10:00:00Z",
-		"false",
-		"instance_type",
-		"docker,linux",
-		"true",
-		"true",
-	})
+	expectedRaw := strconv.Itoa(int(MetricKindRunner)) + fmt.Sprintf("%v", []string{"101"})
+	expected := MetricKey(strconv.Itoa(int(crc32.ChecksumIEEE([]byte(expectedRaw)))))
 
-	assert.Equal(t, checksumKey(expectedRaw), m.Key())
+	assert.Equal(t, expected, m.Key())
 }
 
 func TestMetricKey_ValueDoesNotAffectKey(t *testing.T) {

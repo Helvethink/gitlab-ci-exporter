@@ -138,36 +138,14 @@ func (c *Client) GetRunner(ctx context.Context, project string, runnerID int) (r
 	c.requestsRemaining(resp)
 
 	// Fill runner details from API response
-	runner.Name = r.Name
 	runner.ID = r.ID
-
-	// Mark environment as available if its state is "available"
-	/**
-	if e.State == "available" {
-			runner.Available = true
-	}
-	*/
-
-	// If the runner has not recorded last details, log and return as is
-	if r.Groups == nil {
-		log.WithContext(ctx).
-			WithFields(log.Fields{
-				"project-name": project,
-				"runner-name":  r.Name,
-				"runner-group": r.Groups,
-			}).
-			Debug("no Group found for this runner")
-		return
-	}
-
-	// Fill with the rest of the last runner details
+	runner.Name = r.Name
 	runner.Paused = r.Paused
 	runner.Description = r.Description
 	runner.IsShared = r.IsShared
 	runner.RunnerType = r.RunnerType
 	runner.ContactedAt = r.ContactedAt
 	runner.MaintenanceNote = r.MaintenanceNote
-	runner.Name = r.Name
 	runner.Online = r.Online
 	runner.Status = r.Status
 	runner.Token = r.Token
@@ -176,40 +154,31 @@ func (c *Client) GetRunner(ctx context.Context, project string, runnerID int) (r
 	runner.Locked = r.Locked
 	runner.AccessLevel = r.AccessLevel
 	runner.MaximumTimeout = r.MaximumTimeout
-	runner.Groups = []struct {
-		ID     int
-		Name   string
-		WebURL string
-	}(r.Groups)
-	runner.Projects = []struct {
-		ID                int
-		Name              string
-		NameWithNamespace string
-		Path              string
-		PathWithNamespace string
-	}(r.Projects)
-	/*
-		fmt.Printf("===============\nRunner infos:\n"+
-			"Runner Paused:%v\n"+
-			"Runner Desc:%v\n"+
-			"RunnerIsShared:%v\n"+
-			"RunnerType:%v\n"+
-			"RunnerContact:%v\n"+
-			"RunnerMaintenance:%v\n"+
-			"RunnerName:%v\n"+
-			"RunnerOnline:%v\n"+
-			"Runner Status:%v\n"+
-			"Runner Token:%v\n"+
-			"Runner TagList:%v\n"+
-			"Runner Untagged:%v\n"+
-			"RunnerLocked:%v\n"+
-			"RunnerAccessLevel:%v\n"+
-			"RunnerMaxTimeout:%v\n"+
-			"Runner Groups:%v\n"+
-			"Runner Projects:%v\n"+
-			"=====================\n",
-			r.Paused, r.Description, r.IsShared, r.RunnerType, r.ContactedAt, r.MaintenanceNote, r.Name, r.Online, r.Status, r.Token, r.TagList, r.RunUntagged, r.Locked, r.AccessLevel, r.MaximumTimeout, r.Groups, r.Projects)
-	*/
-	// Return the populated Runner struct and nil error
+
+	// If the runner has not recorded last details, log and return as is
+	if r.Groups == nil {
+		log.WithContext(ctx).
+			WithFields(log.Fields{
+				"project-name": project,
+				"runner-name":  r.Name,
+			}).
+			Debug("no group found for this runner")
+	} else {
+		runner.Groups = []struct {
+			ID     int
+			Name   string
+			WebURL string
+		}(r.Groups)
+	}
+
+	if r.Projects != nil {
+		runner.Projects = []struct {
+			ID                int
+			Name              string
+			NameWithNamespace string
+			Path              string
+			PathWithNamespace string
+		}(r.Projects)
+	}
 	return
 }

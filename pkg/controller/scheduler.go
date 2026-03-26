@@ -504,10 +504,6 @@ func (c *Controller) TaskHandlerGarbageCollectRunners(ctx context.Context) error
 // - If Scheduled is true, the task is scheduled repeatedly at the configured interval.
 //
 // If a Redis client is configured, it also schedules a keepalive task for Redis.
-//
-// Note: The Redis keepalive scheduling currently happens inside the loop for each task,
-//
-//	which might be more efficient to call just once outside the loop.
 func (c *Controller) Schedule(ctx context.Context, pull config.Pull, gc config.GarbageCollect) {
 	ctx, span := otel.Tracer(tracerName).Start(ctx, "controller:Schedule")
 	defer span.End()
@@ -540,10 +536,11 @@ func (c *Controller) Schedule(ctx context.Context, pull config.Pull, gc config.G
 		if cfg.Scheduled {
 			c.ScheduleTaskWithTicker(ctx, tt, cfg.IntervalSeconds)
 		}
+	}
 
-		if c.Redis != nil {
-			c.ScheduleRedisSetKeepalive(ctx)
-		}
+	// Start the Redis keepalive loop only once.
+	if c.Redis != nil {
+		c.ScheduleRedisSetKeepalive(ctx)
 	}
 }
 

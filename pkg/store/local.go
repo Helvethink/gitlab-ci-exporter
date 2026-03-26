@@ -212,9 +212,9 @@ func (l *Local) GetRunner(ctx context.Context, runner *schemas.Runner) error {
 	exists, _ := l.RunnerExists(ctx, runner.Key())
 
 	if exists {
-		l.environmentsMutex.RLock()       // Lock the mutex for read-only access
+		l.runnersMutex.RLock()            // Lock the mutex for read-only access
 		*runner = l.runners[runner.Key()] // Retrieve the runner
-		l.environmentsMutex.RUnlock()     // Unlock the mutex
+		l.runnersMutex.RUnlock()          // Unlock the mutex
 	}
 
 	return nil

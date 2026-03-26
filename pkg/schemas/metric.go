@@ -122,6 +122,18 @@ const (
 
 	// MetricKindRunner refers to the runner information.
 	MetricKindRunner
+
+	// MetricKindRunnerContactedAtSeconds refers to the last contact timestamp of a runner.
+	MetricKindRunnerContactedAtSeconds
+
+	// MetricKindRunnerProjectInfo refers to the relation between a runner and a project.
+	MetricKindRunnerProjectInfo
+
+	// MetricKindRunnerTagInfo refers to the relation between a runner and a tag.
+	MetricKindRunnerTagInfo
+
+	// MetricKindRunnerGroupInfo refers to the relation between a runner and a group.
+	MetricKindRunnerGroupInfo
 )
 
 // Metric represents a metric with a kind, labels, and a value.
@@ -199,20 +211,36 @@ func (m Metric) Key() MetricKey {
 		})
 
 	case MetricKindRunner:
+		// One logical metric series per runner ID.
 		key += fmt.Sprintf("%v", []string{
-			m.Labels["project"],
-			m.Labels["kind"],
 			m.Labels["runner_id"],
-			m.Labels["runner_description"],
-			m.Labels["runner_groups"],
-			m.Labels["runner_projects"],
-			m.Labels["runner_maintenance_note"],
-			m.Labels["contacted_at"],
-			m.Labels["paused"],
-			m.Labels["runner_type"],
-			m.Labels["tag_list"],
-			m.Labels["is_shared"],
-			m.Labels["active"],
+		})
+
+	case MetricKindRunnerContactedAtSeconds:
+		// One logical metric series per runner ID.
+		key += fmt.Sprintf("%v", []string{
+			m.Labels["runner_id"],
+		})
+
+	case MetricKindRunnerProjectInfo:
+		// One logical metric series per runner/project pair.
+		key += fmt.Sprintf("%v", []string{
+			m.Labels["runner_id"],
+			m.Labels["project"],
+		})
+
+	case MetricKindRunnerTagInfo:
+		// One logical metric series per runner/tag pair.
+		key += fmt.Sprintf("%v", []string{
+			m.Labels["runner_id"],
+			m.Labels["tag"],
+		})
+
+	case MetricKindRunnerGroupInfo:
+		// One logical metric series per runner/group pair.
+		key += fmt.Sprintf("%v", []string{
+			m.Labels["runner_id"],
+			m.Labels["group"],
 		})
 	}
 

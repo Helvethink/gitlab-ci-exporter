@@ -369,6 +369,8 @@ func (c *Client) ListRefMostRecentJobs(ctx context.Context, ref schemas.Ref) (jo
 				goGitlab.WithContext(ctx),
 				goGitlab.WithKeysetPaginationParameters(resp.NextLink),
 			}
+		} else {
+			opt.Page = resp.NextPage
 		}
 	}
 

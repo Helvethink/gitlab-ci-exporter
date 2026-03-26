@@ -2,13 +2,96 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
+	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/helvethink/gitlab-ci-exporter/pkg/schemas"
 	log "github.com/sirupsen/logrus"
 )
+
+// uniqueSortedNonEmpty removes empty values and duplicates,
+// then sorts the remaining values for stable metric labels.
+func uniqueSortedNonEmpty(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	out := make([]string, 0, len(values))
+
+	for _, v := range values {
+		if v == "" {
+			continue
+		}
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		out = append(out, v)
+	}
+
+	sort.Strings(out)
+	return out
+}
+
+// runnerGroupNames returns a stable, deduplicated list of group names.
+func runnerGroupNames(runner schemas.Runner) []string {
+	names := make([]string, 0, len(runner.Groups))
+	for _, g := range runner.Groups {
+		names = append(names, g.Name)
+	}
+	return uniqueSortedNonEmpty(names)
+}
+
+// runnerProjectNames returns a stable, deduplicated list of project names.
+// It prefers PathWithNamespace, then NameWithNamespace, then Name.
+func runnerProjectNames(runner schemas.Runner) []string {
+	names := make([]string, 0, len(runner.Projects))
+	for _, p := range runner.Projects {
+		switch {
+		case p.PathWithNamespace != "":
+			names = append(names, p.PathWithNamespace)
+		case p.NameWithNamespace != "":
+			names = append(names, p.NameWithNamespace)
+		case p.Name != "":
+			names = append(names, p.Name)
+		}
+	}
+	return uniqueSortedNonEmpty(names)
+}
+
+// runnerTagNames returns a stable, deduplicated list of runner tags.
+func runnerTagNames(runner schemas.Runner) []string {
+	return uniqueSortedNonEmpty(runner.TagList)
+}
+
+// deleteRunnerMetrics removes all metrics currently stored for a given runner ID.
+// This ensures the next export represents the latest snapshot only.
+func (c *Controller) deleteRunnerMetrics(ctx context.Context, runnerID int) error {
+	metrics, err := c.Store.Metrics(ctx)
+	if err != nil {
+		return err
+	}
+
+	runnerIDStr := strconv.Itoa(runnerID)
+
+	for key, metric := range metrics {
+		if metric.Labels["runner_id"] != runnerIDStr {
+			continue
+		}
+
+		switch metric.Kind {
+		case schemas.MetricKindRunner,
+			schemas.MetricKindRunnerContactedAtSeconds,
+			schemas.MetricKindRunnerProjectInfo,
+			schemas.MetricKindRunnerTagInfo,
+			schemas.MetricKindRunnerGroupInfo:
+			if err := c.Store.DelMetric(ctx, key); err != nil {
+				return err
+			}
+		default:
+			// nothing happens
+		}
+	}
+
+	return nil
+}
 
 // PullRunnersFromProject fetches the list of runners for a given project from the GitLab API,
 // then checks if each runner already exists in the local store.
@@ -57,79 +140,129 @@ func (c *Controller) PullRunnersFromProject(ctx context.Context, p schemas.Proje
 	return
 }
 
-// UpdateRunner fetches the latest state of a given runner from the GitLab API,
-// updates the local runner object with the latest details (Paused, Contacted At, and maintenance notes),
-// and then saves the updated runner back to the local store.
+// UpdateRunner fetches the latest runner details from GitLab and fully refreshes
+// the local runner object before storing it.
 func (c *Controller) UpdateRunner(ctx context.Context, runner *schemas.Runner) error {
-	// Prepare logging fields with project, job name, and job ID for contextual logging
 	projectRefLogFields := log.Fields{
 		"runner-id": runner.ID,
 	}
 
-	// Retrieve the latest runner data from GitLab
 	pulledRunner, err := c.Gitlab.GetRunner(ctx, runner.ProjectName, runner.ID)
 	if err != nil {
 		return err
 	}
 
-	// Update the local runner fields with the latest data
-	runner.Paused = pulledRunner.Paused
-	runner.ContactedAt = pulledRunner.ContactedAt
-	runner.MaintenanceNote = pulledRunner.MaintenanceNote
+	// Preserve local context fields that are not guaranteed to be returned
+	// by the GitLab API call.
+	pulledRunner.ProjectName = runner.ProjectName
+	pulledRunner.OutputSparseStatusMetrics = runner.OutputSparseStatusMetrics
+
+	// Replace the local runner with the freshly pulled one.
+	*runner = pulledRunner
 
 	log.WithFields(projectRefLogFields).Info("update runner metrics")
-	// Save the updated runner back to the store
 	return c.Store.SetRunner(ctx, *runner)
 }
 
-// ProcessRunnerMetrics processes metrics for a given runner and updates the store accordingly.
+// ProcessRunnerMetrics refreshes a runner from GitLab and exports:
+//
+// 1. One global runner info metric per runner ID
+// 2. One contacted_at metric per runner ID
+// 3. One runner/project relation metric per project
+// 4. One runner/tag relation metric per tag
+// 5. One runner/group relation metric per group
+//
+// This avoids exporting one runner info series per project.
 func (c *Controller) ProcessRunnerMetrics(ctx context.Context, runner schemas.Runner) (err error) {
-	// Prepare logging fields with project, job name, and job ID for contextual logging
 	projectRefLogFields := log.Fields{
 		"project-name-or-id": runner.ProjectName,
 		"runner-desc":        runner.Description,
 	}
+
+	// Refresh runner details before exporting metrics.
 	if err = c.UpdateRunner(ctx, &runner); err != nil {
 		return
 	}
 
-	// Initialize labels from the reference default labels and add job-specific labels
-	groups := runner.Groups
-	GroupsOut, err := json.Marshal(groups)
-	if err != nil {
-		return nil
+	// Remove previous runner metrics so the store only contains the latest snapshot.
+	if err = c.deleteRunnerMetrics(ctx, runner.ID); err != nil {
+		return
 	}
-	projects := runner.Projects
-	projectsOut, err := json.Marshal(projects)
-	if err != nil {
-		return nil
+
+	groupNames := runnerGroupNames(runner)
+	projectNames := runnerProjectNames(runner)
+	tagNames := runnerTagNames(runner)
+
+	runnerID := strconv.Itoa(runner.ID)
+
+	// Export one global runner info metric per runner.
+	infoLabels := map[string]string{
+		"runner_id":               runnerID,
+		"runner_name":             runner.Name,
+		"runner_description":      runner.Description,
+		"is_shared":               strconv.FormatBool(runner.IsShared),
+		"runner_type":             runner.RunnerType,
+		"online":                  strconv.FormatBool(runner.Online),
+		"active":                  strconv.FormatBool(!runner.Paused),
+		"paused":                  strconv.FormatBool(runner.Paused),
+		"status":                  runner.Status,
+		"runner_maintenance_note": runner.MaintenanceNote,
 	}
-	tags := strings.Join(runner.TagList, ",")
 
-	labels := runner.DefaultLabelsValues()
-	labels["runner_name"] = runner.Name
-	labels["runner_id"] = strconv.Itoa(runner.ID)                                       // The unique identifier for the environment
-	labels["is_shared"] = strconv.FormatBool(runner.IsShared)                           // The kind of the latest deployment's reference
-	labels["runner_type"] = runner.RunnerType                                           // The name of the latest deployment's reference
-	labels["online"] = strconv.FormatBool(runner.Online)                                // The short ID of the current commit
-	labels["tag_list"] = tags                                                           // Placeholder for the latest commit short ID (empty in this context)
-	labels["active"] = strconv.FormatBool(runner.Paused)                                // The availability status of the environment
-	labels["runner_maintenance_note"] = runner.MaintenanceNote                          // Maintenance note label
-	labels["contacted_at"] = strconv.FormatInt(runner.ContactedAt.UTC().UnixNano(), 10) // Last contact with gitlab server
-	labels["status"] = runner.Status                                                    // The status of the runner
-	labels["paused"] = strconv.FormatBool(runner.Paused)                                // Define if the runner is paused
-	labels["runner_groups"] = string(GroupsOut)                                         // The groups assigned to this runner
-	labels["runner_projects"] = string(projectsOut)                                     // The projects assigned to this runner
-
-	// Log trace info indicating that job metrics are being processed
 	log.WithFields(projectRefLogFields).Info("processing runner metrics")
 
-	// Store the size of job artifacts in bytes
 	storeSetMetric(ctx, c.Store, schemas.Metric{
 		Kind:   schemas.MetricKindRunner,
-		Labels: labels,
+		Labels: infoLabels,
 		Value:  1,
 	})
+
+	// Export the last contact timestamp as a numeric metric value, not as a label.
+	if runner.ContactedAt != nil {
+		storeSetMetric(ctx, c.Store, schemas.Metric{
+			Kind: schemas.MetricKindRunnerContactedAtSeconds,
+			Labels: map[string]string{
+				"runner_id": runnerID,
+			},
+			Value: float64(runner.ContactedAt.UTC().Unix()),
+		})
+	}
+
+	// Export one metric per related project.
+	for _, projectName := range projectNames {
+		storeSetMetric(ctx, c.Store, schemas.Metric{
+			Kind: schemas.MetricKindRunnerProjectInfo,
+			Labels: map[string]string{
+				"runner_id": runnerID,
+				"project":   projectName,
+			},
+			Value: 1,
+		})
+	}
+
+	// Export one metric per runner tag.
+	for _, tag := range tagNames {
+		storeSetMetric(ctx, c.Store, schemas.Metric{
+			Kind: schemas.MetricKindRunnerTagInfo,
+			Labels: map[string]string{
+				"runner_id": runnerID,
+				"tag":       tag,
+			},
+			Value: 1,
+		})
+	}
+
+	// Export one metric per runner group.
+	for _, groupName := range groupNames {
+		storeSetMetric(ctx, c.Store, schemas.Metric{
+			Kind: schemas.MetricKindRunnerGroupInfo,
+			Labels: map[string]string{
+				"runner_id": runnerID,
+				"group":     groupName,
+			},
+			Value: 1,
+		})
+	}
 
 	return nil
 }

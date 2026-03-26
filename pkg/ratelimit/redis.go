@@ -58,5 +58,5 @@ func (r Redis) Take(ctx context.Context) time.Duration {
 	}
 
 	// Return the duration taken to allow the request
-	return time.Until(start)
+	return time.Since(start)
 }
