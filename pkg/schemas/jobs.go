@@ -8,14 +8,14 @@ import (
 
 // Job represents a job structure with detailed information about a GitLab CI/CD job.
 type Job struct {
-	ID                    int        // Unique identifier for the job
+	ID                    int64      // Unique identifier for the job
 	Name                  string     // Name of the job
 	Stage                 string     // Stage of the job in the pipeline
 	Timestamp             float64    // Unix timestamp of when the job was created
 	DurationSeconds       float64    // Duration of the job execution in seconds
 	QueuedDurationSeconds float64    // Duration the job was queued in seconds
 	Status                string     // Status of the job
-	PipelineID            int        // PipelineID of the job
+	PipelineID            int64      // PipelineID of the job
 	TagList               string     // Comma-separated list of tags associated with the job
 	ArtifactSize          float64    // Total size of artifacts produced by the job in bytes
 	FailureReason         string     // Reason for failure if the job failed

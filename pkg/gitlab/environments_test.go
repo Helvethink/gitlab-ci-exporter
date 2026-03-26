@@ -90,14 +90,14 @@ func TestGetProjectEnvironments_FiltersAndPaginates(t *testing.T) {
 
 	expected1 := schemas.Environment{
 		ProjectName:               p.Name,
-		ID:                        1,
+		ID:                        int64(1),
 		Name:                      "production",
 		Available:                 true,
 		OutputSparseStatusMetrics: true,
 	}
 	expected2 := schemas.Environment{
 		ProjectName:               p.Name,
-		ID:                        3,
+		ID:                        int64(3),
 		Name:                      "staging",
 		Available:                 true,
 		OutputSparseStatusMetrics: true,
@@ -134,7 +134,7 @@ func TestGetProjectEnvironments_ExcludeStopped(t *testing.T) {
 
 	expected := schemas.Environment{
 		ProjectName:               p.Name,
-		ID:                        1,
+		ID:                        int64(1),
 		Name:                      "production",
 		Available:                 true,
 		OutputSparseStatusMetrics: true,
@@ -161,7 +161,7 @@ func TestGetEnvironment_NoLastDeployment(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "group/project", env.ProjectName)
-	assert.Equal(t, 42, env.ID)
+	assert.Equal(t, int64(42), env.ID)
 	assert.Equal(t, "production", env.Name)
 	assert.Equal(t, "https://example.com", env.ExternalURL)
 	assert.True(t, env.Available)
@@ -201,14 +201,14 @@ func TestGetEnvironment_WithLastDeployment_Branch(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "group/project", env.ProjectName)
-	assert.Equal(t, 99, env.ID)
+	assert.Equal(t, int64(99), env.ID)
 	assert.Equal(t, "staging", env.Name)
 	assert.Equal(t, "https://staging.example.com", env.ExternalURL)
 	assert.True(t, env.Available)
 
 	assert.Equal(t, schemas.RefKindBranch, env.LatestDeployment.RefKind)
 	assert.Equal(t, "main", env.LatestDeployment.RefName)
-	assert.Equal(t, 1234, env.LatestDeployment.JobID)
+	assert.Equal(t, int64(1234), env.LatestDeployment.JobID)
 	assert.Equal(t, 12.5, env.LatestDeployment.DurationSeconds)
 	assert.Equal(t, "success", env.LatestDeployment.Status)
 	assert.Equal(t, "jdoe", env.LatestDeployment.Username)
@@ -243,14 +243,14 @@ func TestGetEnvironment_WithLastDeployment_Tag(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "group/project", env.ProjectName)
-	assert.Equal(t, 100, env.ID)
+	assert.Equal(t, int64(100), env.ID)
 	assert.Equal(t, "release", env.Name)
 	assert.Equal(t, "https://release.example.com", env.ExternalURL)
 	assert.False(t, env.Available)
 
 	assert.Equal(t, schemas.RefKindTag, env.LatestDeployment.RefKind)
 	assert.Equal(t, "v1.2.3", env.LatestDeployment.RefName)
-	assert.Equal(t, 555, env.LatestDeployment.JobID)
+	assert.Equal(t, int64(555), env.LatestDeployment.JobID)
 	assert.Equal(t, 20.0, env.LatestDeployment.DurationSeconds)
 	assert.Equal(t, "failed", env.LatestDeployment.Status)
 	assert.Equal(t, "", env.LatestDeployment.Username)

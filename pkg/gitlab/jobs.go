@@ -61,14 +61,14 @@ func (c *Client) ListRefPipelineJobs(ctx context.Context, ref schemas.Ref) (jobs
 
 // ListPipelineJobs retrieves all jobs associated with a given pipeline ID for a specified project.
 // It handles pagination and rate limiting automatically.
-func (c *Client) ListPipelineJobs(ctx context.Context, projectNameOrID string, pipelineID int) (jobs []schemas.Job, err error) {
+func (c *Client) ListPipelineJobs(ctx context.Context, projectNameOrID string, pipelineID int64) (jobs []schemas.Job, err error) {
 	// Start a tracing span for observability (OpenTelemetry)
 	ctx, span := otel.Tracer(tracerName).Start(ctx, "gitlab:ListPipelineJobs")
 	defer span.End()
 
 	// Attach useful metadata to the span
 	span.SetAttributes(attribute.String("project_name_or_id", projectNameOrID))
-	span.SetAttributes(attribute.Int("pipeline_id", pipelineID))
+	span.SetAttributes(attribute.Int64("pipeline_id", pipelineID))
 
 	var (
 		foundJobs []*goGitlab.Job    // Jobs returned by GitLab API
@@ -126,14 +126,14 @@ func (c *Client) ListPipelineJobs(ctx context.Context, projectNameOrID string, p
 // ListPipelineBridges retrieves all bridge jobs (i.e., jobs that trigger downstream pipelines)
 // associated with a given pipeline ID in a specified project.
 // It paginates through results and respects API rate limits.
-func (c *Client) ListPipelineBridges(ctx context.Context, projectNameOrID string, pipelineID int) (bridges []*goGitlab.Bridge, err error) {
+func (c *Client) ListPipelineBridges(ctx context.Context, projectNameOrID string, pipelineID int64) (bridges []*goGitlab.Bridge, err error) {
 	// Start a tracing span for this operation
 	ctx, span := otel.Tracer(tracerName).Start(ctx, "gitlab:ListPipelineBridges")
 	defer span.End()
 
 	// Add useful attributes to the span for better traceability
 	span.SetAttributes(attribute.String("project_name_or_id", projectNameOrID))
-	span.SetAttributes(attribute.Int("pipeline_id", pipelineID))
+	span.SetAttributes(attribute.Int64("pipeline_id", pipelineID))
 
 	var (
 		foundBridges []*goGitlab.Bridge // Temporary storage for API-returned bridge jobs
@@ -189,19 +189,19 @@ func (c *Client) ListPipelineBridges(ctx context.Context, projectNameOrID string
 
 // ListPipelineChildJobs retrieves all jobs from child pipelines triggered by a given parent pipeline.
 // It traverses through bridge jobs recursively to explore all levels of downstream pipelines.
-func (c *Client) ListPipelineChildJobs(ctx context.Context, projectNameOrID string, parentPipelineID int) (jobs []schemas.Job, err error) {
+func (c *Client) ListPipelineChildJobs(ctx context.Context, projectNameOrID string, parentPipelineID int64) (jobs []schemas.Job, err error) {
 	// Start a tracing span for observability (via OpenTelemetry)
 	ctx, span := otel.Tracer(tracerName).Start(ctx, "gitlab:ListPipelineChildJobs")
 	defer span.End()
 
 	// Add metadata to the tracing span
 	span.SetAttributes(attribute.String("project_name_or_id", projectNameOrID))
-	span.SetAttributes(attribute.Int("parent_pipeline_id", parentPipelineID))
+	span.SetAttributes(attribute.Int64("parent_pipeline_id", parentPipelineID))
 
 	// Internal type to represent a pipeline's project and ID
 	type pipelineDef struct {
 		projectNameOrID string
-		pipelineID      int
+		pipelineID      int64
 	}
 
 	// Seed the traversal with the initial (parent) pipeline
@@ -237,13 +237,13 @@ func (c *Client) ListPipelineChildJobs(ctx context.Context, projectNameOrID stri
 
 			// Add the downstream pipeline to the stack for further traversal
 			pipelines = append(pipelines, pipelineDef{
-				projectNameOrID: strconv.Itoa(foundBridge.DownstreamPipeline.ProjectID),
+				projectNameOrID: strconv.FormatInt(foundBridge.DownstreamPipeline.ProjectID, 10),
 				pipelineID:      foundBridge.DownstreamPipeline.ID,
 			})
 
 			// Fetch jobs from the downstream pipeline
 			var foundJobs []schemas.Job
-			foundJobs, err = c.ListPipelineJobs(ctx, strconv.Itoa(foundBridge.DownstreamPipeline.ProjectID), foundBridge.DownstreamPipeline.ID)
+			foundJobs, err = c.ListPipelineJobs(ctx, strconv.FormatInt(foundBridge.DownstreamPipeline.ProjectID, 10), foundBridge.DownstreamPipeline.ID)
 			if err != nil {
 				return // Exit on error
 			}

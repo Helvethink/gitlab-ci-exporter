@@ -44,7 +44,7 @@ func TestProcessPipelinesMetricsStoresPipelineMetrics(t *testing.T) {
 
 	storedRef := schemas.NewRef(schemas.NewProject("group/project"), schemas.RefKindBranch, "main")
 	require.NoError(t, c.Store.GetRef(ctx, &storedRef))
-	assert.Equal(t, 123, storedRef.LatestPipeline.ID)
+	assert.Equal(t, int64(123), storedRef.LatestPipeline.ID)
 
 	labels := map[string]string{
 		"project":     "group/project",

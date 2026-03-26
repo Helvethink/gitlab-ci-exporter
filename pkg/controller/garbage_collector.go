@@ -552,7 +552,7 @@ func (c *Controller) GarbageCollectMetrics(ctx context.Context) error {
 		// Handle metrics related to a runner.
 		if metricLabelRunnerExists {
 			// runner_id is the canonical identifier for runner-related metrics.
-			runnerID, convErr := strconv.Atoi(metricLabelRunner)
+			runnerID, convErr := strconv.ParseInt(metricLabelRunner, 10, 64)
 			if convErr != nil {
 				if err = deleteMetric(ctx, c.Store, m, "invalid-runner-id-label"); err != nil {
 					return err

@@ -207,19 +207,19 @@ func (s *Server) GetTelemetry(_ *pb.Empty, ts pb.Monitor_GetTelemetryServer) (er
 			telemetry.Projects.NextPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullProjectsFromWildcards].Next)
 		}
 
-		// Set last and next garbage collection times for projects
+		// Set the last and next garbage collection times for projects
 		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectProjects]; ok {
 			telemetry.Projects.LastGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectProjects].Last)
 			telemetry.Projects.NextGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectProjects].Next)
 		}
 
-		// Set last and next pull times for environments
+		// Set the last and next pull times for environments
 		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypePullEnvironmentsFromProjects]; ok {
 			telemetry.Envs.LastPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullEnvironmentsFromProjects].Last)
 			telemetry.Envs.NextPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullEnvironmentsFromProjects].Next)
 		}
 
-		// Set last and next garbage collection times for environments
+		// Set the last and next garbage collection times for environments
 		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectEnvironments]; ok {
 			telemetry.Envs.LastGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectEnvironments].Last)
 			telemetry.Envs.NextGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectEnvironments].Next)
@@ -231,31 +231,31 @@ func (s *Server) GetTelemetry(_ *pb.Empty, ts pb.Monitor_GetTelemetryServer) (er
 			telemetry.Runners.NextPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullRunnersFromProjects].Next)
 		}
 
-		// Set last and next garbage collection times for Runners
+		// Set the last and next garbage collection times for Runners
 		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypePullRunnersFromProjects]; ok {
 			telemetry.Runners.LastGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectRunners].Last)
 			telemetry.Runners.NextGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectRunners].Next)
 		}
 
-		// Set last and next pull times for refs
+		// Set the last and next pull times for refs
 		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypePullRefsFromProjects]; ok {
 			telemetry.Refs.LastPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullRefsFromProjects].Last)
 			telemetry.Refs.NextPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullRefsFromProjects].Next)
 		}
 
-		// Set last and next garbage collection times for refs
+		// Set the last and next garbage collection times for refs
 		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectRefs]; ok {
 			telemetry.Refs.LastGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectRefs].Last)
 			telemetry.Refs.NextGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectRefs].Next)
 		}
 
-		// Set last and next pull times for metrics
+		// Set the last and next pull times for metrics
 		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypePullMetrics]; ok {
 			telemetry.Metrics.LastPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullMetrics].Last)
 			telemetry.Metrics.NextPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullMetrics].Next)
 		}
 
-		// Set last and next garbage collection times for metrics
+		// Set the last and next garbage collection times for metrics
 		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectMetrics]; ok {
 			telemetry.Metrics.LastGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectMetrics].Last)
 			telemetry.Metrics.NextGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectMetrics].Next)

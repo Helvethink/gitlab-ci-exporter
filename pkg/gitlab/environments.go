@@ -101,12 +101,12 @@ func (c *Client) GetProjectEnvironments(ctx context.Context, p schemas.Project) 
 
 // GetEnvironment retrieves detailed information about a specific environment
 // in a GitLab project, including its latest deployment data if available.
-func (c *Client) GetEnvironment(ctx context.Context, project string, environmentID int) (environment schemas.Environment, err error) {
+func (c *Client) GetEnvironment(ctx context.Context, project string, environmentID int64) (environment schemas.Environment, err error) {
 	// Start an OpenTelemetry span for tracing this method call
 	ctx, span := otel.Tracer(tracerName).Start(ctx, "gitlab:GetEnvironment")
 	defer span.End()
 	span.SetAttributes(attribute.String("project_name", project))
-	span.SetAttributes(attribute.Int("environment_id", environmentID))
+	span.SetAttributes(attribute.Int64("environment_id", environmentID))
 
 	// Initialize the return Environment struct with project name and environment ID
 	environment = schemas.Environment{

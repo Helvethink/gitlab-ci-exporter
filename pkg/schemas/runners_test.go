@@ -83,7 +83,7 @@ func TestRunnerInformationLabelsValues(t *testing.T) {
 		ProjectName:     "group/project",
 		MaintenanceNote: "maintenance",
 		Projects: []struct {
-			ID                int
+			ID                int64
 			Name              string
 			NameWithNamespace string
 			Path              string
@@ -98,7 +98,7 @@ func TestRunnerInformationLabelsValues(t *testing.T) {
 			},
 		},
 		Groups: []struct {
-			ID     int
+			ID     int64
 			Name   string
 			WebURL string
 		}{

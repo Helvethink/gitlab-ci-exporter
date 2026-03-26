@@ -13,7 +13,7 @@ type RunnerKey string
 type Runner struct {
 	Paused          bool
 	Description     string
-	ID              int
+	ID              int64
 	IsShared        bool
 	RunnerType      string
 	ContactedAt     *time.Time
@@ -26,16 +26,16 @@ type Runner struct {
 	RunUntagged     bool
 	Locked          bool
 	AccessLevel     string
-	MaximumTimeout  int
+	MaximumTimeout  int64
 	Projects        []struct {
-		ID                int
+		ID                int64
 		Name              string
 		NameWithNamespace string
 		Path              string
 		PathWithNamespace string
 	}
 	Groups []struct {
-		ID     int
+		ID     int64
 		Name   string
 		WebURL string
 	}
@@ -48,7 +48,7 @@ type Runners map[RunnerKey]Runner
 // Key generates a unique key for a Runner using a CRC32 checksum of the project name and runner name.
 func (r Runner) Key() RunnerKey {
 	// Generate a unique key using the CRC32 checksum of the project name and runner description
-	return RunnerKey(strconv.Itoa(int(crc32.ChecksumIEEE([]byte(strconv.Itoa(r.ID))))))
+	return RunnerKey(strconv.Itoa(int(crc32.ChecksumIEEE([]byte(strconv.FormatInt(r.ID, 10))))))
 }
 
 // Count returns the number of environments in the Environments map.
@@ -93,7 +93,7 @@ func (r Runner) InformationLabelsValues() (v map[string]string) {
 
 	// Add additional detailed label values
 	v["runner_name"] = r.Name                              // The name of the runner
-	v["runner_id"] = strconv.Itoa(r.ID)                    // The unique identifier for the environment
+	v["runner_id"] = strconv.FormatInt(r.ID, 10)           // The unique identifier for the environment
 	v["is_shared"] = strconv.FormatBool(r.IsShared)        // The kind of the latest deployment's reference
 	v["runner_type"] = r.RunnerType                        // The name of the latest deployment's reference
 	v["online"] = strconv.FormatBool(r.Online)             // The short ID of the current commit

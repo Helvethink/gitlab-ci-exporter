@@ -69,8 +69,8 @@ func (c *Controller) ProcessJobMetrics(ctx context.Context, ref schemas.Ref, job
 	labels["job_name"] = job.Name
 	labels["tag_list"] = job.TagList
 	labels["status"] = job.Status
-	labels["job_id"] = strconv.Itoa(job.ID)
-	labels["pipeline_id"] = strconv.Itoa(job.PipelineID)
+	labels["job_id"] = strconv.FormatInt(job.ID, 10)
+	labels["pipeline_id"] = strconv.FormatInt(job.PipelineID, 10)
 	labels["failure_reason"] = job.FailureReason
 
 	// If runner description aggregation is enabled in the config, use regexp to aggregate runner descriptions
@@ -84,7 +84,7 @@ func (c *Controller) ProcessJobMetrics(ctx context.Context, ref schemas.Ref, job
 				Error("invalid job runner description aggregation regexp")
 		}
 
-		// If runner description matches the aggregation regexp, set it to the regexp pattern,
+		// If the runner description matches the aggregation regexp, set it to the regexp pattern,
 		// otherwise use the actual runner description string
 		if re.MatchString(job.Runner.Description) {
 			labels["runner_description"] = ref.Project.Pull.Pipeline.Jobs.RunnerDescription.AggregationRegexp

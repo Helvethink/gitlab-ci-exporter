@@ -11,7 +11,7 @@ import (
 
 // Pipeline represents a pipeline structure with detailed information about a GitLab CI/CD pipeline.
 type Pipeline struct {
-	ID                    int        // Unique identifier for the pipeline
+	ID                    int64      // Unique identifier for the pipeline
 	Coverage              float64    // Coverage percentage of the pipeline
 	Timestamp             float64    // Unix timestamp of when the pipeline was updated
 	DurationSeconds       float64    // Duration of the pipeline execution in seconds
@@ -33,11 +33,11 @@ func (pipeline Pipeline) Key() PipelineKey {
 // TestReport represents a test report structure with detailed information about test results.
 type TestReport struct {
 	TotalTime    float64     // Total time taken by all tests in seconds
-	TotalCount   int         // Total number of tests
-	SuccessCount int         // Number of successful tests
-	FailedCount  int         // Number of failed tests
-	SkippedCount int         // Number of skipped tests
-	ErrorCount   int         // Number of tests with errors
+	TotalCount   int64       // Total number of tests
+	SuccessCount int64       // Number of successful tests
+	FailedCount  int64       // Number of failed tests
+	SkippedCount int64       // Number of skipped tests
+	ErrorCount   int64       // Number of tests with errors
 	TestSuites   []TestSuite // List of test suites in the report
 }
 
@@ -45,11 +45,11 @@ type TestReport struct {
 type TestSuite struct {
 	Name         string     // Name of the test suite
 	TotalTime    float64    // Total time taken by the test suite in seconds
-	TotalCount   int        // Total number of tests in the suite
-	SuccessCount int        // Number of successful tests in the suite
-	FailedCount  int        // Number of failed tests in the suite
-	SkippedCount int        // Number of skipped tests in the suite
-	ErrorCount   int        // Number of tests with errors in the suite
+	TotalCount   int64      // Total number of tests in the suite
+	SuccessCount int64      // Number of successful tests in the suite
+	FailedCount  int64      // Number of failed tests in the suite
+	SkippedCount int64      // Number of skipped tests in the suite
+	ErrorCount   int64      // Number of tests with errors in the suite
 	TestCases    []TestCase // List of test cases in the suite
 }
 

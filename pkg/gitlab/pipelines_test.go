@@ -66,7 +66,7 @@ func TestGetRefPipeline(t *testing.T) {
 	got, err := c.GetRefPipeline(context.Background(), ref, 123)
 	require.NoError(t, err)
 
-	assert.Equal(t, 123, got.ID)
+	assert.Equal(t, int64(123), got.ID)
 	assert.Equal(t, 87.5, got.Coverage)
 	assert.Equal(t, float64(1710000000), got.Timestamp)
 	assert.Equal(t, 120.0, got.DurationSeconds)
@@ -111,9 +111,9 @@ func TestGetProjectPipelines_DefaultPagination(t *testing.T) {
 	require.NotNil(t, resp)
 
 	require.Len(t, pipelines, 2)
-	assert.Equal(t, 1, pipelines[0].ID)
+	assert.Equal(t, int64(1), pipelines[0].ID)
 	assert.Equal(t, "main", pipelines[0].Ref)
-	assert.Equal(t, 2, pipelines[1].ID)
+	assert.Equal(t, int64(2), pipelines[1].ID)
 	assert.Equal(t, "develop", pipelines[1].Ref)
 }
 
@@ -310,11 +310,11 @@ func TestGetRefPipelineTestReport_SinglePipeline(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 20.0, report.TotalTime)
-	assert.Equal(t, 6, report.TotalCount)
-	assert.Equal(t, 4, report.SuccessCount)
-	assert.Equal(t, 1, report.FailedCount)
-	assert.Equal(t, 1, report.SkippedCount)
-	assert.Equal(t, 0, report.ErrorCount)
+	assert.Equal(t, int64(6), report.TotalCount)
+	assert.Equal(t, int64(4), report.SuccessCount)
+	assert.Equal(t, int64(1), report.FailedCount)
+	assert.Equal(t, int64(1), report.SkippedCount)
+	assert.Equal(t, int64(0), report.ErrorCount)
 	require.Len(t, report.TestSuites, 1)
 	assert.Equal(t, "suite-1", report.TestSuites[0].Name)
 	require.Len(t, report.TestSuites[0].TestCases, 1)

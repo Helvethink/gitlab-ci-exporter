@@ -40,7 +40,7 @@ func (c *Controller) PullRefMetrics(ctx context.Context, ref schemas.Ref) error 
 	// Fetch the most recent pipeline for the ref from GitLab API (only one pipeline needed)
 	pipelines, _, err := c.Gitlab.GetProjectPipelines(ctx, ref.Project.Name, &goGitlab.ListProjectPipelinesOptions{
 		ListOptions: goGitlab.ListOptions{
-			PerPage: int(ref.Project.Pull.Pipeline.PerRef),
+			PerPage: int64(int(ref.Project.Pull.Pipeline.PerRef)),
 			Page:    1,
 		},
 		Ref: &refName,
@@ -136,7 +136,7 @@ func (c *Controller) ProcessPipelinesMetrics(ctx context.Context, ref schemas.Re
 
 		// Prepare default labels for metrics based on the ref info
 		labels := ref.DefaultLabelsValues()
-		labels["pipeline_id"] = strconv.Itoa(pipeline.ID)
+		labels["pipeline_id"] = strconv.FormatInt(pipeline.ID, 10)
 		labels["status"] = pipeline.Status
 
 		// If the metric does not exist yet, start with 0 instead of 1

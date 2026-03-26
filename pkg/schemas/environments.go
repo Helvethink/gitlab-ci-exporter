@@ -8,7 +8,7 @@ import (
 // Environment represents an environment structure with detailed information about a GitLab environment.
 type Environment struct {
 	ProjectName      string     // Name of the project the environment belongs to
-	ID               int        // Unique identifier for the environment
+	ID               int64      // Unique identifier for the environment
 	Name             string     // Name of the environment
 	ExternalURL      string     // External URL associated with the environment
 	Available        bool       // Availability status of the environment
@@ -48,7 +48,7 @@ func (e Environment) InformationLabelsValues() (v map[string]string) {
 	v = e.DefaultLabelsValues()
 
 	// Add additional detailed label values
-	v["environment_id"] = strconv.Itoa(e.ID)                        // The unique identifier for the environment
+	v["environment_id"] = strconv.FormatInt(e.ID, 10)               // The unique identifier for the environment
 	v["external_url"] = e.ExternalURL                               // The external URL associated with the environment
 	v["kind"] = string(e.LatestDeployment.RefKind)                  // The kind of the latest deployment's reference
 	v["ref"] = e.LatestDeployment.RefName                           // The name of the latest deployment's reference
