@@ -42,10 +42,42 @@ var (
 		"success", "failed", "canceled", "skipped", "manual", "scheduled", "error", "success_with_warnings",
 	}
 
-	// runnerLabels defines labels for metrics related to runner deploy.
+	// runnerLabels defines labels for the global runner information metric.
+	// This metric is intended to expose one logical series per runner ID.
 	runnerLabels = []string{
-		"project", "runner_description", "runner_name", "runner_id", "is_shared", "runner_type", "runner_projects",
-		"online", "tag_list", "active", "status", "runner_groups", "runner_maintenance_note", "contacted_at", "paused",
+		"runner_id",
+		"runner_name",
+		"runner_description",
+		"is_shared",
+		"runner_type",
+		"online",
+		"active",
+		"status",
+		"runner_maintenance_note",
+		"paused",
+	}
+
+	// runnerProjectLabels defines labels for the relationship between a runner and a project.
+	runnerProjectLabels = []string{
+		"runner_id",
+		"project",
+	}
+
+	// runnerTagLabels defines labels for the relationship between a runner and a tag.
+	runnerTagLabels = []string{
+		"runner_id",
+		"tag",
+	}
+
+	// runnerGroupLabels defines labels for the relationship between a runner and a group.
+	runnerGroupLabels = []string{
+		"runner_id",
+		"group",
+	}
+
+	// runnerContactedAtLabels defines labels for the runner last contact timestamp metric.
+	runnerContactedAtLabels = []string{
+		"runner_id",
 	}
 )
 
@@ -558,17 +590,67 @@ func NewCollectorRunCount() prometheus.Collector {
 }
 
 // NewCollectorRunners returns a new Prometheus gauge collector for the
-// metric "gitlab_ci_runners". This metric reports information about your runners.
-//
-// The labels include the default set of labels plus an additional "runnerLabels" label
-// and "runnnerInformationLabels" that describes the runners state.
+// metric "gitlab_ci_runners_info". This metric exposes global information
+// about a GitLab runner, with one logical series per runner ID.
 func NewCollectorRunners() prometheus.Collector {
 	return prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "gitlab_ci_runners_info",
-			Help: "Status of your runners",
+			Help: "Information about GitLab runners",
 		},
 		runnerLabels,
+	)
+}
+
+// NewCollectorRunnerContactedAtSeconds returns a new Prometheus gauge collector for the
+// metric "gitlab_ci_runner_contacted_at_seconds". This metric stores the last contact
+// timestamp of a runner as a Unix timestamp in seconds.
+func NewCollectorRunnerContactedAtSeconds() prometheus.Collector {
+	return prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "gitlab_ci_runner_contacted_at_seconds",
+			Help: "Unix timestamp in seconds of the last runner contact",
+		},
+		runnerContactedAtLabels,
+	)
+}
+
+// NewCollectorRunnerProjectInfo returns a new Prometheus gauge collector for the
+// metric "gitlab_ci_runner_project_info". This metric represents the relationship
+// between a GitLab runner and a project.
+func NewCollectorRunnerProjectInfo() prometheus.Collector {
+	return prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "gitlab_ci_runner_project_info",
+			Help: "Relationship between a GitLab runner and a project",
+		},
+		runnerProjectLabels,
+	)
+}
+
+// NewCollectorRunnerTagInfo returns a new Prometheus gauge collector for the
+// metric "gitlab_ci_runner_tag_info". This metric represents the relationship
+// between a GitLab runner and one of its tags.
+func NewCollectorRunnerTagInfo() prometheus.Collector {
+	return prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "gitlab_ci_runner_tag_info",
+			Help: "Relationship between a GitLab runner and a tag",
+		},
+		runnerTagLabels,
+	)
+}
+
+// NewCollectorRunnerGroupInfo returns a new Prometheus gauge collector for the
+// metric "gitlab_ci_runner_group_info". This metric represents the relationship
+// between a GitLab runner and a group.
+func NewCollectorRunnerGroupInfo() prometheus.Collector {
+	return prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "gitlab_ci_runner_group_info",
+			Help: "Relationship between a GitLab runner and a group",
+		},
+		runnerGroupLabels,
 	)
 }
 

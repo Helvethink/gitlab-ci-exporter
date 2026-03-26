@@ -82,6 +82,10 @@ func NewRegistry(ctx context.Context) *Registry {
 			schemas.MetricKindTestCaseExecutionTime:                NewCollectorTestCaseExecutionTime(),
 			schemas.MetricKindTestCaseStatus:                       NewCollectorTestCaseStatus(),
 			schemas.MetricKindRunner:                               NewCollectorRunners(),
+			schemas.MetricKindRunnerContactedAtSeconds:             NewCollectorRunnerContactedAtSeconds(),
+			schemas.MetricKindRunnerProjectInfo:                    NewCollectorRunnerProjectInfo(),
+			schemas.MetricKindRunnerGroupInfo:                      NewCollectorRunnerGroupInfo(),
+			schemas.MetricKindRunnerTagInfo:                        NewCollectorRunnerTagInfo(),
 		},
 	}
 

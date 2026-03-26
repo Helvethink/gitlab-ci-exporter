@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"regexp"
+	"strconv"
 
 	"dario.cat/mergo"
 	log "github.com/sirupsen/logrus"
@@ -548,23 +549,33 @@ func (c *Controller) GarbageCollectMetrics(ctx context.Context) error {
 			}
 		}
 
-		// TODO: => Improve this - Handle metrics related to a Runner.
+		// Handle metrics related to a runner.
 		if metricLabelRunnerExists {
+			// runner_id is the canonical identifier for runner-related metrics.
+			runnerID, convErr := strconv.Atoi(metricLabelRunner)
+			if convErr != nil {
+				if err = deleteMetric(ctx, c.Store, m, "invalid-runner-id-label"); err != nil {
+					return err
+				}
+
+				log.WithFields(log.Fields{
+					"metric-kind":   m.Kind,
+					"metric-labels": m.Labels,
+					"reason":        "invalid-runner-id-label",
+				}).Info("deleted metric from the store")
+
+				continue
+			}
+
 			runnerKey := schemas.Runner{
-				ProjectName: metricLabelProject,
-				Name:        metricLabelRunner,
+				ID: runnerID,
 			}.Key()
 
 			runner, runnerExists := storedRunners[runnerKey]
-			// fmt.Println("Stored Runners and runner exists: ", storedRunners[runnerKey], runnerExists)
 
-			// Delete the metric if the runner no longer exists
+			// Delete the metric if the runner no longer exists.
 			if !runnerExists {
-				// TODO: => This must be donne directly on store controllers - Redis expiration trick
-				if err = deleteMetric(ctx, c.Store, m, "deleted metric from the store"); err != nil {
-					return err
-				}
-				if err = c.Store.DelMetric(ctx, k); err != nil {
+				if err = deleteMetric(ctx, c.Store, m, "non-existent-runner"); err != nil {
 					return err
 				}
 
@@ -578,13 +589,15 @@ func (c *Controller) GarbageCollectMetrics(ctx context.Context) error {
 			}
 
 			switch m.Kind {
-			case schemas.MetricKindRunner:
-				if runner.OutputSparseStatusMetrics && m.Value != 1 {
-					// TODO: => This must be donne directly on store controllers - Redis expiration trick
+			case schemas.MetricKindRunner,
+				schemas.MetricKindRunnerContactedAtSeconds,
+				schemas.MetricKindRunnerProjectInfo,
+				schemas.MetricKindRunnerTagInfo,
+				schemas.MetricKindRunnerGroupInfo:
+				// Keep runner-related metrics as long as the runner still exists.
+				// For the global runner info metric, optionally apply sparse cleanup.
+				if m.Kind == schemas.MetricKindRunner && runner.OutputSparseStatusMetrics && m.Value != 1 {
 					if err = deleteMetric(ctx, c.Store, m, "output-sparse-metrics-enabled-on-runner"); err != nil {
-						return err
-					}
-					if err = c.Store.DelMetric(ctx, k); err != nil {
 						return err
 					}
 
@@ -597,7 +610,7 @@ func (c *Controller) GarbageCollectMetrics(ctx context.Context) error {
 					continue
 				}
 			default:
-				// Nothing to do
+				// Nothing to do for other metric kinds.
 			}
 		}
 
