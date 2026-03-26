@@ -85,6 +85,8 @@ func (c *Controller) deleteRunnerMetrics(ctx context.Context, runnerID int) erro
 			if err := c.Store.DelMetric(ctx, key); err != nil {
 				return err
 			}
+		default:
+			// nothing happens
 		}
 	}
 

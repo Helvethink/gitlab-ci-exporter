@@ -6,6 +6,8 @@ import (
 	monitorUI "github.com/helvethink/gitlab-ci-exporter/pkg/monitor/ui"
 )
 
+var startMonitorUI = monitorUI.Start
+
 // Monitor starts the internal monitoring UI.
 func Monitor(ctx *cli.Context) (int, error) {
 	// Parse global flags from CLI context (e.g., internal monitoring address)
@@ -15,7 +17,7 @@ func Monitor(ctx *cli.Context) (int, error) {
 	}
 
 	// Start the monitoring UI with app version and configured listener address
-	monitorUI.Start(
+	startMonitorUI(
 		ctx.App.Version,
 		cfg.InternalMonitoringListenerAddress,
 	)
