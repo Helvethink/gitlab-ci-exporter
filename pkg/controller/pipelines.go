@@ -6,11 +6,9 @@ import (
 	"reflect"
 	"strconv"
 
+	"github.com/helvethink/gitlab-ci-exporter/pkg/schemas"
 	log "github.com/sirupsen/logrus"
 	goGitlab "gitlab.com/gitlab-org/api/client-go"
-	"golang.org/x/exp/slices"
-
-	"github.com/helvethink/gitlab-ci-exporter/pkg/schemas"
 )
 
 // PullRefMetrics fetches and updates metrics related to a specific GitLab ref (branch, tag, or merge request).
@@ -213,7 +211,15 @@ func (c *Controller) ProcessPipelinesMetrics(ctx context.Context, ref schemas.Re
 	}
 
 	// fetch pipeline test report
-	if ref.Project.Pull.Pipeline.TestReports.Enabled && slices.Contains(finishedStatusesList, ref.LatestPipeline.Status) {
+	isFinishedStatus := false
+	for _, status := range finishedStatusesList {
+		if status == ref.LatestPipeline.Status {
+			isFinishedStatus = true
+			break
+		}
+	}
+
+	if ref.Project.Pull.Pipeline.TestReports.Enabled && isFinishedStatus {
 		ref.LatestPipeline.TestReport, err = c.Gitlab.GetRefPipelineTestReport(ctx, ref)
 		if err != nil {
 			return err
