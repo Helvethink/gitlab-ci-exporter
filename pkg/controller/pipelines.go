@@ -74,7 +74,9 @@ func (c *Controller) PullRefMetrics(ctx context.Context, ref schemas.Ref) error 
 
 	// Reverse result list to have `ref`'s `LatestPipeline` untouched (compared to
 	// default behavior) after looping over list
-	slices.Reverse[[]*goGitlab.PipelineInfo, *goGitlab.PipelineInfo](pipelines)
+	for i, j := 0, len(pipelines)-1; i < j; i, j = i+1, j-1 {
+		pipelines[i], pipelines[j] = pipelines[j], pipelines[i]
+	}
 
 	for _, apiPipeline := range pipelines {
 		err := c.ProcessPipelinesMetrics(ctx, ref, apiPipeline)
