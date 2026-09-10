@@ -14,6 +14,7 @@ jobs:
       contents: write
       attestations: write
       id-token: write
+      security-events: write
     env:
       DOCKER_CLI_EXPERIMENTAL: 'enabled'
     steps:
@@ -69,3 +70,41 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Scan published image with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: docker.io/helvethink/gitlab-ci-exporter:${{ github.ref_name }}
+          scan-type: image
+          format: sarif
+          output: trivy-results.sarif
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: 1
+
+      - name: Upload Trivy scan results to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Generate image SBOM with Trivy
+        if: always()
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: docker.io/helvethink/gitlab-ci-exporter:${{ github.ref_name }}
+          format: cyclonedx
+          output: trivy-sbom.cyclonedx.json
+          scan-type: image
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+
+      - name: Upload Trivy SBOM
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-sbom-${{ github.ref_name }}
+          path: trivy-sbom.cyclonedx.json
+          if-no-files-found: error
+          retention-days: 90
