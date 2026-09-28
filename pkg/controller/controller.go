@@ -131,6 +131,9 @@ func (c *Controller) registerTasks() {
 // If the operation fails, it logs a warning with the task details and the error encountered.
 // This helps ensure that tasks are properly cleaned up from the queue to avoid duplicate processing or stale tasks.
 func (c *Controller) dequeueTask(ctx context.Context, tt schemas.TaskType, uniqueID string) {
+	if c.TaskController.admission != nil {
+		defer c.TaskController.admission.release(taskKey{typeName: tt, id: uniqueID})
+	}
 	if err := c.Store.DequeueTask(ctx, tt, uniqueID); err != nil {
 		log.WithContext(ctx).
 			WithFields(log.Fields{

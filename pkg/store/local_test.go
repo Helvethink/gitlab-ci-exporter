@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -18,6 +20,122 @@ func newTestLocalStore(t *testing.T) *Local {
 	require.True(t, ok)
 
 	return s
+}
+
+func TestLocalTaskReservationIsAtomic(t *testing.T) {
+	s := newTestLocalStore(t)
+	ctx := context.Background()
+	const workers = 100
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	var reserved atomic.Int32
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			ok, err := s.QueueTask(ctx, schemas.TaskTypePullMetrics, "same", "")
+			if err != nil {
+				t.Errorf("QueueTask: %v", err)
+			}
+			if ok {
+				reserved.Add(1)
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	require.Equal(t, int32(1), reserved.Load())
+
+	for range workers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := s.DequeueTask(ctx, schemas.TaskTypePullMetrics, "same"); err != nil {
+				t.Errorf("DequeueTask: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	executed, err := s.ExecutedTasksCount(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, uint64(1), executed)
+}
+
+func TestLocalCancelTaskDoesNotCountAsExecution(t *testing.T) {
+	s := newTestLocalStore(t)
+	ctx := context.Background()
+	reserved, err := s.QueueTask(ctx, schemas.TaskTypePullMetrics, "same", "")
+	require.NoError(t, err)
+	require.True(t, reserved)
+	require.NoError(t, s.CancelTask(ctx, schemas.TaskTypePullMetrics, "same", ""))
+	executed, err := s.ExecutedTasksCount(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, executed)
+	reserved, err = s.QueueTask(ctx, schemas.TaskTypePullMetrics, "same", "")
+	require.NoError(t, err)
+	assert.True(t, reserved)
+}
+
+func TestLocalStoreClonesMutableValues(t *testing.T) {
+	s := newTestLocalStore(t)
+	ctx := context.Background()
+	ref := schemas.NewRef(schemas.NewProject("group/project"), schemas.RefKindBranch, "main")
+	ref.LatestJobs["build"] = schemas.Job{ID: 1}
+	require.NoError(t, s.SetRef(ctx, ref))
+	ref.LatestJobs["build"] = schemas.Job{ID: 2}
+
+	got := schemas.NewRef(ref.Project, ref.Kind, ref.Name)
+	require.NoError(t, s.GetRef(ctx, &got))
+	assert.Equal(t, int64(1), got.LatestJobs["build"].ID)
+	got.LatestJobs["build"] = schemas.Job{ID: 3}
+
+	refs, err := s.Refs(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), refs[ref.Key()].LatestJobs["build"].ID)
+	copyRef := refs[ref.Key()]
+	copyRef.LatestJobs["build"] = schemas.Job{ID: 4}
+
+	require.NoError(t, s.GetRef(ctx, &got))
+	assert.Equal(t, int64(1), got.LatestJobs["build"].ID)
+}
+
+func TestLocalStoreReturnedMapsRemainIndependentDuringConcurrentMutations(t *testing.T) {
+	s := newTestLocalStore(t)
+	ctx := context.Background()
+	ref := schemas.NewRef(schemas.NewProject("group/project"), schemas.RefKindBranch, "main")
+	ref.LatestJobs["build"] = schemas.Job{ID: 1}
+	require.NoError(t, s.SetRef(ctx, ref))
+	metric := schemas.Metric{Kind: schemas.MetricKindCoverage, Labels: map[string]string{"project": "group/project"}}
+	require.NoError(t, s.SetMetric(ctx, metric))
+	var wg sync.WaitGroup
+	for range 8 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 100 {
+				copyRef := schemas.NewRef(ref.Project, ref.Kind, ref.Name)
+				if err := s.GetRef(ctx, &copyRef); err != nil {
+					t.Errorf("GetRef: %v", err)
+					return
+				}
+				copyRef.LatestJobs["build"] = schemas.Job{ID: 2}
+				copyMetric := schemas.Metric{Kind: metric.Kind, Labels: map[string]string{"project": "group/project"}}
+				if err := s.GetMetric(ctx, &copyMetric); err != nil {
+					t.Errorf("GetMetric: %v", err)
+					return
+				}
+				copyMetric.Labels["project"] = "changed"
+			}
+		}()
+	}
+	wg.Wait()
+	storedRef := schemas.NewRef(ref.Project, ref.Kind, ref.Name)
+	require.NoError(t, s.GetRef(ctx, &storedRef))
+	assert.Equal(t, int64(1), storedRef.LatestJobs["build"].ID)
+	storedMetric := schemas.Metric{Kind: metric.Kind, Labels: map[string]string{"project": "group/project"}}
+	require.NoError(t, s.GetMetric(ctx, &storedMetric))
+	assert.Equal(t, "group/project", storedMetric.Labels["project"])
 }
 
 func TestLocalHasExpiredAlwaysFalse(t *testing.T) {

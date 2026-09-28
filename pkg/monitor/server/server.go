@@ -22,10 +22,10 @@ import (
 type Server struct {
 	pb.UnimplementedMonitorServer // Embedded unimplemented server for protobuf
 
-	gitlabClient             *gitlab.Client                                     // GitLab client for API interactions
-	cfg                      config.Config                                      // Configuration for the server
-	store                    store.Store                                        // Storage interface for data persistence
-	taskSchedulingMonitoring map[schemas.TaskType]*monitor.TaskSchedulingStatus // Task scheduling statuses
+	gitlabClient             *gitlab.Client // GitLab client for API interactions
+	cfg                      config.Config  // Configuration for the server
+	store                    store.Store    // Storage interface for data persistence
+	taskSchedulingMonitoring *monitor.SchedulingStatus
 }
 
 // NewServer creates a new Server instance.
@@ -33,7 +33,7 @@ func NewServer(
 	gitlabClient *gitlab.Client, // GitLab client instance
 	c config.Config, // Configuration instance
 	st store.Store, // Storage instance
-	tsm map[schemas.TaskType]*monitor.TaskSchedulingStatus, // Task scheduling monitoring map
+	tsm *monitor.SchedulingStatus,
 ) (s *Server) {
 	// Initialize and return a new Server instance
 	s = &Server{
@@ -126,6 +126,7 @@ func (s *Server) GetConfig(ctx context.Context, _ *pb.Empty) (*pb.Config, error)
 func (s *Server) GetTelemetry(_ *pb.Empty, ts pb.Monitor_GetTelemetryServer) (err error) {
 	ctx := ts.Context()
 	ticker := time.NewTicker(time.Second) // Create a ticker to send telemetry data every second
+	defer ticker.Stop()
 
 	for {
 		// Initialize a telemetry message
@@ -147,13 +148,13 @@ func (s *Server) GetTelemetry(_ *pb.Empty, ts pb.Monitor_GetTelemetryServer) (er
 		telemetry.GitlabApiRequestsCount = s.gitlabClient.RequestsCounter.Load()
 
 		// Calculate GitLab API rate limit usage
-		telemetry.GitlabApiRateLimit = float64(s.gitlabClient.RequestsRemaining) / float64(s.gitlabClient.RequestsLimit)
-		if telemetry.GitlabApiRateLimit > 1 {
-			telemetry.GitlabApiRateLimit = 1
+		rateLimit := s.gitlabClient.RateLimit()
+		if rateLimit.Limit > 0 {
+			telemetry.GitlabApiRateLimit = float64(rateLimit.Remaining) / float64(rateLimit.Limit)
 		}
 
 		// Set GitLab API limit remaining
-		telemetry.GitlabApiLimitRemaining = uint64(s.gitlabClient.RequestsRemaining)
+		telemetry.GitlabApiLimitRemaining = uint64(rateLimit.Remaining)
 
 		// Get the count of currently queued tasks
 		var queuedTasks uint64
@@ -201,64 +202,70 @@ func (s *Server) GetTelemetry(_ *pb.Empty, ts pb.Monitor_GetTelemetryServer) (er
 			return
 		}
 
+		// Use one detached snapshot for the entire telemetry message.
+		var schedule map[schemas.TaskType]monitor.TaskSchedulingStatus
+		if s.taskSchedulingMonitoring != nil {
+			schedule = s.taskSchedulingMonitoring.Snapshot()
+		}
+
 		// Set last and next pull times for projects
-		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypePullProjectsFromWildcards]; ok {
-			telemetry.Projects.LastPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullProjectsFromWildcards].Last)
-			telemetry.Projects.NextPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullProjectsFromWildcards].Next)
+		if status, ok := schedule[schemas.TaskTypePullProjectsFromWildcards]; ok {
+			telemetry.Projects.LastPull = timestamppb.New(status.Last)
+			telemetry.Projects.NextPull = timestamppb.New(status.Next)
 		}
 
 		// Set the last and next garbage collection times for projects
-		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectProjects]; ok {
-			telemetry.Projects.LastGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectProjects].Last)
-			telemetry.Projects.NextGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectProjects].Next)
+		if status, ok := schedule[schemas.TaskTypeGarbageCollectProjects]; ok {
+			telemetry.Projects.LastGc = timestamppb.New(status.Last)
+			telemetry.Projects.NextGc = timestamppb.New(status.Next)
 		}
 
 		// Set the last and next pull times for environments
-		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypePullEnvironmentsFromProjects]; ok {
-			telemetry.Envs.LastPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullEnvironmentsFromProjects].Last)
-			telemetry.Envs.NextPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullEnvironmentsFromProjects].Next)
+		if status, ok := schedule[schemas.TaskTypePullEnvironmentsFromProjects]; ok {
+			telemetry.Envs.LastPull = timestamppb.New(status.Last)
+			telemetry.Envs.NextPull = timestamppb.New(status.Next)
 		}
 
 		// Set the last and next garbage collection times for environments
-		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectEnvironments]; ok {
-			telemetry.Envs.LastGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectEnvironments].Last)
-			telemetry.Envs.NextGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectEnvironments].Next)
+		if status, ok := schedule[schemas.TaskTypeGarbageCollectEnvironments]; ok {
+			telemetry.Envs.LastGc = timestamppb.New(status.Last)
+			telemetry.Envs.NextGc = timestamppb.New(status.Next)
 		}
 
 		// Set last and next pull times for Runners
-		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypePullRunnersFromProjects]; ok {
-			telemetry.Runners.LastPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullRunnersFromProjects].Last)
-			telemetry.Runners.NextPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullRunnersFromProjects].Next)
+		if status, ok := schedule[schemas.TaskTypePullRunnersFromProjects]; ok {
+			telemetry.Runners.LastPull = timestamppb.New(status.Last)
+			telemetry.Runners.NextPull = timestamppb.New(status.Next)
 		}
 
 		// Set the last and next garbage collection times for Runners
-		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypePullRunnersFromProjects]; ok {
-			telemetry.Runners.LastGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectRunners].Last)
-			telemetry.Runners.NextGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectRunners].Next)
+		if status, ok := schedule[schemas.TaskTypeGarbageCollectRunners]; ok {
+			telemetry.Runners.LastGc = timestamppb.New(status.Last)
+			telemetry.Runners.NextGc = timestamppb.New(status.Next)
 		}
 
 		// Set the last and next pull times for refs
-		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypePullRefsFromProjects]; ok {
-			telemetry.Refs.LastPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullRefsFromProjects].Last)
-			telemetry.Refs.NextPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullRefsFromProjects].Next)
+		if status, ok := schedule[schemas.TaskTypePullRefsFromProjects]; ok {
+			telemetry.Refs.LastPull = timestamppb.New(status.Last)
+			telemetry.Refs.NextPull = timestamppb.New(status.Next)
 		}
 
 		// Set the last and next garbage collection times for refs
-		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectRefs]; ok {
-			telemetry.Refs.LastGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectRefs].Last)
-			telemetry.Refs.NextGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectRefs].Next)
+		if status, ok := schedule[schemas.TaskTypeGarbageCollectRefs]; ok {
+			telemetry.Refs.LastGc = timestamppb.New(status.Last)
+			telemetry.Refs.NextGc = timestamppb.New(status.Next)
 		}
 
 		// Set the last and next pull times for metrics
-		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypePullMetrics]; ok {
-			telemetry.Metrics.LastPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullMetrics].Last)
-			telemetry.Metrics.NextPull = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypePullMetrics].Next)
+		if status, ok := schedule[schemas.TaskTypePullMetrics]; ok {
+			telemetry.Metrics.LastPull = timestamppb.New(status.Last)
+			telemetry.Metrics.NextPull = timestamppb.New(status.Next)
 		}
 
 		// Set the last and next garbage collection times for metrics
-		if _, ok := s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectMetrics]; ok {
-			telemetry.Metrics.LastGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectMetrics].Last)
-			telemetry.Metrics.NextGc = timestamppb.New(s.taskSchedulingMonitoring[schemas.TaskTypeGarbageCollectMetrics].Next)
+		if status, ok := schedule[schemas.TaskTypeGarbageCollectMetrics]; ok {
+			telemetry.Metrics.LastGc = timestamppb.New(status.Last)
+			telemetry.Metrics.NextGc = timestamppb.New(status.Next)
 		}
 
 		// Send the telemetry data to the client

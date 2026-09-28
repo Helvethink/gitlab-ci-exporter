@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"sync"
@@ -37,13 +38,37 @@ type Client struct {
 		HTTPClient *http.Client // HTTP client used to perform readiness requests
 	}
 
-	RateLimiter       ratelimit.Limiter        // RateLimiter controls the rate of API requests to avoid hitting GitLab rate limits.
-	RateCounter       *ratecounter.RateCounter // RateCounter tracks the number of requests over time for monitoring or throttling.
-	RequestsCounter   atomic.Uint64            // RequestsCounter is an atomic counter for total requests sent.
-	RequestsLimit     int                      // RequestsLimit is the maximum allowed number of requests within a certain period.
-	RequestsRemaining int                      // RequestsRemaining tracks how many requests can still be sent before hitting the limit.
-	version           GitLabVersion            // version stores the detected GitLab API version to enable version-aware behavior.
-	mutex             sync.RWMutex             // mutex protects concurrent access to mutable shared fields like version and counters.
+	RateLimiter     ratelimit.Limiter        // RateLimiter controls the rate of API requests to avoid hitting GitLab rate limits.
+	RateCounter     *ratecounter.RateCounter // RateCounter tracks the number of requests over time for monitoring or throttling.
+	RequestsCounter atomic.Uint64            // RequestsCounter is an atomic counter for total requests sent.
+	rateLimitMu     sync.RWMutex
+	rateLimitState  RateLimitSnapshot
+	version         GitLabVersion // version stores the detected GitLab API version to enable version-aware behavior.
+	mutex           sync.RWMutex  // mutex protects concurrent access to mutable shared fields like version and counters.
+}
+
+// RateLimitSnapshot contains quota values from one GitLab response.
+type RateLimitSnapshot struct {
+	Remaining int
+	Limit     int
+}
+
+// RateLimit returns a coherent copy of the most recent valid quota headers.
+func (c *Client) RateLimit() RateLimitSnapshot {
+	c.rateLimitMu.RLock()
+	defer c.rateLimitMu.RUnlock()
+	return c.rateLimitState
+}
+
+// UpdateRateLimit records a complete valid quota pair atomically.
+func (c *Client) UpdateRateLimit(remaining, limit int) bool {
+	if remaining < 0 || limit <= 0 || remaining > limit {
+		return false
+	}
+	c.rateLimitMu.Lock()
+	c.rateLimitState = RateLimitSnapshot{Remaining: remaining, Limit: limit}
+	c.rateLimitMu.Unlock()
+	return true
 }
 
 // ClientConfig holds configuration options needed to instantiate a new Client.
@@ -210,17 +235,19 @@ func (c *Client) Version() GitLabVersion {
 // requestsRemaining parses rate limit headers from the GitLab API response
 // and updates the client's fields to track remaining requests and limit.
 func (c *Client) requestsRemaining(response *goGitlab.Response) {
-	if response == nil {
+	if response == nil || response.Response == nil {
 		return
 	}
-
-	// Extract "ratelimit-remaining" header and parse it to int
-	if remaining := response.Header.Get("ratelimit-remaining"); remaining != "" {
-		c.RequestsRemaining, _ = strconv.Atoi(remaining)
+	remainingHeader := response.Header.Get("ratelimit-remaining")
+	limitHeader := response.Header.Get("ratelimit-limit")
+	if remainingHeader == "" || limitHeader == "" {
+		return
 	}
-
-	// Extract "ratelimit-limit" header and parse it to int
-	if limit := response.Header.Get("ratelimit-limit"); limit != "" {
-		c.RequestsLimit, _ = strconv.Atoi(limit)
+	remaining, remainingErr := strconv.Atoi(remainingHeader)
+	limit, limitErr := strconv.Atoi(limitHeader)
+	if remainingErr != nil || limitErr != nil || remaining < 0 || limit <= 0 || remaining > limit {
+		slog.Warn("ignoring invalid GitLab rate-limit headers", "remaining_error", remainingErr, "limit_error", limitErr)
+		return
 	}
+	c.UpdateRateLimit(remaining, limit)
 }

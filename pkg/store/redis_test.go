@@ -321,3 +321,21 @@ func TestRedisExecutedTasksCount(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1), count)
 }
+
+func TestRedisCancelTaskOnlyRemovesOwnedReservation(t *testing.T) {
+	_, r := newTestRedisStore(t)
+	queued, err := r.QueueTask(testCtx, schemas.TaskTypePullMetrics, "foo", "owner-a")
+	assert.NoError(t, err)
+	assert.True(t, queued)
+	assert.NoError(t, r.CancelTask(testCtx, schemas.TaskTypePullMetrics, "foo", "owner-b"))
+	count, err := r.CurrentlyQueuedTasksCount(testCtx)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), count)
+	assert.NoError(t, r.CancelTask(testCtx, schemas.TaskTypePullMetrics, "foo", "owner-a"))
+	count, err = r.CurrentlyQueuedTasksCount(testCtx)
+	assert.NoError(t, err)
+	assert.Zero(t, count)
+	executed, err := r.ExecutedTasksCount(testCtx)
+	assert.ErrorIs(t, err, redis.Nil)
+	assert.Zero(t, executed)
+}
