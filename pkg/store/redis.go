@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -668,26 +669,19 @@ func (r *Redis) SetPipelineVariables(ctx context.Context, pipeline schemas.Pipel
 }
 
 func (r *Redis) GetPipelineVariables(ctx context.Context, pipeline schemas.Pipeline) (string, error) {
-	exists, err := r.PipelineVariablesExists(ctx, pipeline)
+	value, err := r.HGet(ctx, redisPipelineVariablesKey, fmt.Sprintf("%d", pipeline.ID)).Bytes()
+	if errors.Is(err, redis.Nil) {
+		return "", nil
+	}
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("get pipeline variables: %w", err)
 	}
 
-	if exists {
-		k := fmt.Sprintf("%d", pipeline.ID)
-
-		marshalledVariables, err := r.HGet(ctx, redisPipelineVariablesKey, string(k)).Result()
-		if err != nil {
-			return "", err
-		}
-		var variables string
-
-		if err = msgpack.Unmarshal([]byte(marshalledVariables), &variables); err != nil {
-			return variables, err
-		}
+	var variables string
+	if err := msgpack.Unmarshal(value, &variables); err != nil {
+		return "", fmt.Errorf("decode pipeline variables: %w", err)
 	}
-
-	return "", err
+	return variables, nil
 }
 
 func (r *Redis) PipelineVariablesExists(ctx context.Context, pipeline schemas.Pipeline) (bool, error) {

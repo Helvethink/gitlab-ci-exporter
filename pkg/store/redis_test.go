@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/helvethink/gitlab-ci-exporter/pkg/schemas"
 )
@@ -432,4 +433,40 @@ func TestRedisSameProcessOldDeliveryCannotDeleteNewReservation(t *testing.T) {
 	count, err := r.CurrentlyQueuedTasksCount(testCtx)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(1), count)
+}
+
+func TestRedisGetPipelineVariables(t *testing.T) {
+	pipeline := schemas.Pipeline{ID: 88}
+
+	t.Run("stored value", func(t *testing.T) {
+		_, r := newTestRedisStore(t)
+		variables := `{"ENV":"prod"}`
+		require.NoError(t, r.SetPipelineVariables(testCtx, pipeline, variables))
+		got, err := r.GetPipelineVariables(testCtx, pipeline)
+		require.NoError(t, err)
+		assert.Equal(t, variables, got)
+	})
+
+	t.Run("missing value", func(t *testing.T) {
+		_, r := newTestRedisStore(t)
+		got, err := r.GetPipelineVariables(testCtx, pipeline)
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("corrupt value", func(t *testing.T) {
+		_, r := newTestRedisStore(t)
+		require.NoError(t, r.HSet(testCtx, redisPipelineVariablesKey, "88", []byte{0xc1}).Err())
+		got, err := r.GetPipelineVariables(testCtx, pipeline)
+		require.ErrorContains(t, err, "decode pipeline variables")
+		assert.Empty(t, got)
+	})
+
+	t.Run("Redis error", func(t *testing.T) {
+		mr, r := newTestRedisStore(t)
+		mr.SetError("redis unavailable")
+		got, err := r.GetPipelineVariables(testCtx, pipeline)
+		require.ErrorContains(t, err, "redis unavailable")
+		assert.Empty(t, got)
+	})
 }
