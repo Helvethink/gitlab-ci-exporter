@@ -809,3 +809,18 @@ wildcards:
 ```
 
 The public `/metrics` and `/health/*` endpoints do not provide application-level authentication. Bind the public listener to a trusted interface or protect it with firewall rules, a private network, or an authenticated reverse proxy. The pprof listener is separate and loopback-only by default; keep it private because profiling data can reveal sensitive process details.
+
+### Redis task delivery
+
+With Redis enabled, all replicas share one task queue and one reservation limit set by
+`gitlab.maximum_jobs_queue_size`. Starting another replica preserves pending jobs.
+A job can run on a different replica from the one that published it. Reservations
+prevent concurrent scheduling of the same task, and a new publisher can reclaim a
+reservation after its previous publisher's keepalive expires.
+
+Accepted Redis jobs use **at least once** delivery: a worker failure or
+expired reservation can cause a task to run again. Pull and garbage collection handlers use keyed store writes
+and deletes; repeated GitLab API reads can still occur. During a graceful stop, allow active tasks
+to finish before closing the Redis connection; an interrupted task can be
+redelivered. When the shared reservation limit is reached, new scheduling
+attempts are skipped until a reservation completes.

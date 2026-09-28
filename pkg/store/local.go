@@ -520,7 +520,7 @@ func (l *Local) QueueTask(_ context.Context, tt schemas.TaskType, uniqueID, _ st
 }
 
 // DequeueTask removes the task from the tracker.
-func (l *Local) DequeueTask(_ context.Context, tt schemas.TaskType, uniqueID string) error {
+func (l *Local) DequeueTask(_ context.Context, tt schemas.TaskType, uniqueID, _ string) error {
 	l.tasksMutex.Lock()
 	defer l.tasksMutex.Unlock()
 	if _, exists := l.tasks[tt][uniqueID]; exists {

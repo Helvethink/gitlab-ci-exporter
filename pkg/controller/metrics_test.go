@@ -87,7 +87,7 @@ func TestExportInternalMetrics(t *testing.T) {
 	ok, err = s.QueueTask(ctx, schemas.TaskTypePullMetrics, "task-2", "")
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.NoError(t, s.DequeueTask(ctx, schemas.TaskTypePullMetrics, "task-1"))
+	require.NoError(t, s.DequeueTask(ctx, schemas.TaskTypePullMetrics, "task-1", ""))
 
 	g := &gitlabclient.Client{}
 	g.UpdateRateLimit(17, 50)

@@ -99,7 +99,7 @@ func TestGetTelemetry(t *testing.T) {
 	ok, err := st.QueueTask(ctx, schemas.TaskTypePullMetrics, "task-1", "")
 	require.NoError(t, err)
 	require.True(t, ok)
-	require.NoError(t, st.DequeueTask(ctx, schemas.TaskTypePullMetrics, "task-1"))
+	require.NoError(t, st.DequeueTask(ctx, schemas.TaskTypePullMetrics, "task-1", ""))
 	ok, err = st.QueueTask(ctx, schemas.TaskTypePullMetrics, "task-2", "")
 	require.NoError(t, err)
 	require.True(t, ok)

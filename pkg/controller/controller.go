@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -84,9 +85,21 @@ func New(ctx context.Context, cfg config.Config, version string) (c Controller, 
 	}
 	c.Store = store.New(ctx, redisStore, c.Config.Projects)
 
+	if redisStore != nil {
+		if _, err = redisStore.SetKeepalive(ctx, c.UUID.String(), 10*time.Second); err != nil {
+			return
+		}
+	}
+
 	// Configure GitLab client, passing the app version for client identification
 	if err = c.configureGitlab(cfg.Gitlab, version); err != nil {
 		return
+	}
+
+	if c.Redis != nil {
+		if err = c.TaskController.Factory.StartConsumers(ctx); err != nil {
+			return
+		}
 	}
 
 	// Start background schedulers for pulling data and garbage collection based on config
@@ -134,7 +147,10 @@ func (c *Controller) dequeueTask(ctx context.Context, tt schemas.TaskType, uniqu
 	if c.TaskController.admission != nil {
 		defer c.TaskController.admission.release(taskKey{typeName: tt, id: uniqueID})
 	}
-	if err := c.Store.DequeueTask(ctx, tt, uniqueID); err != nil {
+	owner, _ := ctx.Value(reservationOwnerKey{}).(string)
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if err := c.Store.DequeueTask(cleanupCtx, tt, uniqueID, owner); err != nil {
 		log.WithContext(ctx).
 			WithFields(log.Fields{
 				"task_type":      tt,

@@ -721,101 +721,39 @@ func getRedisQueueKey(tt schemas.TaskType, taskUUID string) string {
 // QueueTask registers that we are queueing the task.
 // It returns true if it managed to schedule it, false if it was already scheduled.
 func (r *Redis) QueueTask(ctx context.Context, tt schemas.TaskType, taskUUID, processUUID string) (bool, error) {
-	k := getRedisQueueKey(tt, taskUUID)
-
-	// First attempt: try to acquire the task using SET NX
-	set, err := r.SetArgs(ctx, k, processUUID, redis.SetArgs{Mode: "NX"}).Result()
-	if err != nil {
-		return false, err
-	}
-	if set == "OK" {
-		return true, nil
-	}
-
-	acquired := false
-
-	// Slow path: key already exists, determine if we can take over
-	err = r.Watch(ctx, func(tx *redis.Tx) error {
-		current, err := tx.Get(ctx, k).Result()
-		if err != nil {
-			return err
-		}
-
-		// Already owned by this process
-		if current == processUUID {
-			acquired = false
-			return nil
-		}
-
-		// Check whether current owner is still alive
-		alive, err := r.KeepaliveExists(ctx, current)
-		if err != nil {
-			return err
-		}
-
-		// Current owner still alive, cannot override
-		if alive {
-			acquired = false
-			return nil
-		}
-
-		// Current owner is dead, take over
-		_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-			pipe.Set(ctx, k, processUUID, 0)
-			return nil
-		})
-		if err != nil {
-			return err
-		}
-
-		acquired = true
-		return nil
-	}, k)
-	if err != nil {
-		return false, err
-	}
-
-	return acquired, nil
+	return r.QueueTaskLimited(ctx, tt, taskUUID, processUUID, 0)
 }
 
-// DequeueTask removes the task from the tracker.
-func (r *Redis) DequeueTask(ctx context.Context, tt schemas.TaskType, taskUUID string) (err error) {
-	var matched int64
+// QueueTaskLimited atomically reserves a task and enforces shared capacity.
+// A nonpositive limit disables capacity checking for direct store callers.
+func (r *Redis) QueueTaskLimited(ctx context.Context, tt schemas.TaskType, taskUUID, processUUID string, limit int) (bool, error) {
+	const script = `
+local current = redis.call('GET', KEYS[1])
+if current then
+  if current == ARGV[1] or redis.call('EXISTS', ARGV[2] .. (string.match(current, '^[^|]+') or '')) == 1 then return 0 end
+else
+  if tonumber(ARGV[3]) > 0 and #redis.call('KEYS', ARGV[4]) >= tonumber(ARGV[3]) then return 0 end
+end
+redis.call('SET', KEYS[1], ARGV[1])
+return 1`
+	result, err := r.Eval(ctx, script, []string{getRedisQueueKey(tt, taskUUID)}, processUUID, redisKeepaliveKey+":", limit, redisTaskKey+":*").Int64()
+	return result == 1, err
+}
 
-	// Delete the task key from Redis
-	matched, err = r.Del(ctx, getRedisQueueKey(tt, taskUUID)).Result()
-	if err != nil {
-		return
-	}
-
-	// Increment the count of executed tasks
-	if matched > 0 {
-		_, err = r.Incr(ctx, redisTasksExecutedCountKey).Result()
-	}
-
-	return
+// DequeueTask completes only the reservation owned by the supplied process.
+func (r *Redis) DequeueTask(ctx context.Context, tt schemas.TaskType, taskUUID, processUUID string) error {
+	const script = `
+if redis.call('GET', KEYS[1]) ~= ARGV[1] then return 0 end
+redis.call('DEL', KEYS[1])
+redis.call('INCR', KEYS[2])
+return 1`
+	return r.Eval(ctx, script, []string{getRedisQueueKey(tt, taskUUID), redisTasksExecutedCountKey}, processUUID).Err()
 }
 
 // CancelTask removes only a reservation still owned by this process.
 func (r *Redis) CancelTask(ctx context.Context, tt schemas.TaskType, taskUUID, processUUID string) error {
-	key := getRedisQueueKey(tt, taskUUID)
-	return r.Watch(ctx, func(tx *redis.Tx) error {
-		owner, err := tx.Get(ctx, key).Result()
-		if err == redis.Nil {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if owner != processUUID {
-			return nil
-		}
-		_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-			pipe.Del(ctx, key)
-			return nil
-		})
-		return err
-	}, key)
+	const script = `if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end return 0`
+	return r.Eval(ctx, script, []string{getRedisQueueKey(tt, taskUUID)}, processUUID).Err()
 }
 
 // CurrentlyQueuedTasksCount returns the count of currently queued tasks.
