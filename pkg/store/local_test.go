@@ -51,7 +51,7 @@ func TestLocalTaskReservationIsAtomic(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := s.DequeueTask(ctx, schemas.TaskTypePullMetrics, "same"); err != nil {
+			if err := s.DequeueTask(ctx, schemas.TaskTypePullMetrics, "same", ""); err != nil {
 				t.Errorf("DequeueTask: %v", err)
 			}
 		}()
@@ -453,7 +453,7 @@ func TestLocalDequeueTaskAndExecutedCount(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(0), count)
 
-	assert.NoError(t, s.DequeueTask(ctx, schemas.TaskTypePullMetrics, "task-1"))
+	assert.NoError(t, s.DequeueTask(ctx, schemas.TaskTypePullMetrics, "task-1", ""))
 
 	count, err = s.ExecutedTasksCount(ctx)
 	assert.NoError(t, err)
@@ -479,7 +479,7 @@ func TestLocalCurrentlyQueuedTasksCount(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(3), count)
 
-	assert.NoError(t, s.DequeueTask(ctx, schemas.TaskTypePullMetrics, "task-1"))
+	assert.NoError(t, s.DequeueTask(ctx, schemas.TaskTypePullMetrics, "task-1", ""))
 
 	count, err = s.CurrentlyQueuedTasksCount(ctx)
 	assert.NoError(t, err)

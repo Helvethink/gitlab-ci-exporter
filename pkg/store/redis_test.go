@@ -2,6 +2,9 @@ package store
 
 import (
 	"context"
+	"fmt"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -259,13 +262,13 @@ func TestRedisQueueTask(t *testing.T) {
 
 	ok, err = r.QueueTask(testCtx, schemas.TaskTypePullMetrics, "foo", "controller2")
 	assert.False(t, ok)
-	assert.ErrorIs(t, err, redis.Nil)
+	assert.NoError(t, err)
 
 	mr.FastForward(2 * time.Second)
 
 	ok, err = r.QueueTask(testCtx, schemas.TaskTypePullMetrics, "foo", "controller2")
-	assert.False(t, ok)
-	assert.ErrorIs(t, err, redis.Nil)
+	assert.True(t, ok)
+	assert.NoError(t, err)
 }
 
 func TestRedisDequeueTask(t *testing.T) {
@@ -278,7 +281,7 @@ func TestRedisDequeueTask(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, uint64(0), count)
 
-	assert.NoError(t, r.DequeueTask(testCtx, schemas.TaskTypePullMetrics, "foo"))
+	assert.NoError(t, r.DequeueTask(testCtx, schemas.TaskTypePullMetrics, "foo", ""))
 
 	count, err = r.ExecutedTasksCount(testCtx)
 	assert.NoError(t, err)
@@ -299,7 +302,7 @@ func TestRedisCurrentlyQueuedTasksCount(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(3), count)
 
-	assert.NoError(t, r.DequeueTask(testCtx, schemas.TaskTypePullMetrics, "foo"))
+	assert.NoError(t, r.DequeueTask(testCtx, schemas.TaskTypePullMetrics, "foo", ""))
 
 	count, err = r.CurrentlyQueuedTasksCount(testCtx)
 	assert.NoError(t, err)
@@ -314,8 +317,8 @@ func TestRedisExecutedTasksCount(t *testing.T) {
 	_, err = r.QueueTask(testCtx, schemas.TaskTypePullMetrics, "bar", "")
 	assert.NoError(t, err)
 
-	assert.NoError(t, r.DequeueTask(testCtx, schemas.TaskTypePullMetrics, "foo"))
-	assert.NoError(t, r.DequeueTask(testCtx, schemas.TaskTypePullMetrics, "foo"))
+	assert.NoError(t, r.DequeueTask(testCtx, schemas.TaskTypePullMetrics, "foo", ""))
+	assert.NoError(t, r.DequeueTask(testCtx, schemas.TaskTypePullMetrics, "foo", ""))
 
 	count, err := r.ExecutedTasksCount(testCtx)
 	assert.NoError(t, err)
@@ -338,4 +341,95 @@ func TestRedisCancelTaskOnlyRemovesOwnedReservation(t *testing.T) {
 	executed, err := r.ExecutedTasksCount(testCtx)
 	assert.ErrorIs(t, err, redis.Nil)
 	assert.Zero(t, executed)
+}
+
+func TestRedisQueueTaskConcurrentTakeover(t *testing.T) {
+	mr, r := newTestRedisStore(t)
+	const task = schemas.TaskTypePullMetrics
+	queued, err := r.QueueTask(testCtx, task, "same", "dead")
+	assert.NoError(t, err)
+	assert.True(t, queued)
+	mr.FastForward(time.Second)
+	const contenders = 24
+	for i := 0; i < contenders; i++ {
+		_, err := r.SetKeepalive(testCtx, fmt.Sprintf("owner-%d", i), time.Minute)
+		assert.NoError(t, err)
+	}
+	var won atomic.Int32
+	var wg sync.WaitGroup
+	for i := 0; i < contenders; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			ok, err := r.QueueTask(testCtx, task, "same", fmt.Sprintf("owner-%d", i))
+			if err != nil {
+				t.Errorf("QueueTask: %v", err)
+			}
+			if ok {
+				won.Add(1)
+			}
+		}(i)
+	}
+	wg.Wait()
+	assert.Equal(t, int32(1), won.Load())
+}
+
+func TestRedisDelayedOwnerCannotCompleteReplacement(t *testing.T) {
+	_, r := newTestRedisStore(t)
+	const task = schemas.TaskTypePullMetrics
+	ok, err := r.QueueTask(testCtx, task, "same", "old")
+	assert.NoError(t, err)
+	assert.True(t, ok)
+	ok, err = r.QueueTask(testCtx, task, "same", "new")
+	assert.NoError(t, err)
+	assert.True(t, ok)
+	assert.NoError(t, r.DequeueTask(testCtx, task, "same", "old"))
+	assert.NoError(t, r.CancelTask(testCtx, task, "same", "old"))
+	count, err := r.CurrentlyQueuedTasksCount(testCtx)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), count)
+	assert.NoError(t, r.DequeueTask(testCtx, task, "same", "new"))
+	count, err = r.CurrentlyQueuedTasksCount(testCtx)
+	assert.NoError(t, err)
+	assert.Zero(t, count)
+	executed, err := r.ExecutedTasksCount(testCtx)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), executed)
+}
+
+func TestRedisSharedCapacityAfterCrossReplicaCompletion(t *testing.T) {
+	_, r := newTestRedisStore(t)
+	const task = schemas.TaskTypePullMetrics
+	for i := 0; i < 20; i++ {
+		id := fmt.Sprintf("task-%d", i)
+		ok, err := r.QueueTaskLimited(testCtx, task, id, "publisher", 1)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		blocked, err := r.QueueTaskLimited(testCtx, task, "overflow", "other", 1)
+		assert.NoError(t, err)
+		assert.False(t, blocked)
+		// Any replica can complete the publisher's job using its carried owner.
+		assert.NoError(t, r.DequeueTask(testCtx, task, id, "publisher"))
+	}
+}
+
+func TestRedisSameProcessOldDeliveryCannotDeleteNewReservation(t *testing.T) {
+	mr, r := newTestRedisStore(t)
+	const task = schemas.TaskTypePullMetrics
+	_, err := r.SetKeepalive(testCtx, "process", time.Second)
+	assert.NoError(t, err)
+	ok, err := r.QueueTask(testCtx, task, "same", "process|old")
+	assert.NoError(t, err)
+	assert.True(t, ok)
+	ok, err = r.QueueTask(testCtx, task, "same", "process|new")
+	assert.NoError(t, err)
+	assert.False(t, ok)
+	mr.FastForward(2 * time.Second)
+	ok, err = r.QueueTask(testCtx, task, "same", "process|new")
+	assert.NoError(t, err)
+	assert.True(t, ok)
+	assert.NoError(t, r.DequeueTask(testCtx, task, "same", "process|old"))
+	count, err := r.CurrentlyQueuedTasksCount(testCtx)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(1), count)
 }

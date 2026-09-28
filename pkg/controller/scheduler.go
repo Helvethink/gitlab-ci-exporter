@@ -3,10 +3,13 @@ package controller
 import (
 	"context"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	log "github.com/sirupsen/logrus"
+	"github.com/vmihailenco/msgpack/v5"
 	"github.com/vmihailenco/taskq/memqueue/v4"
 	"github.com/vmihailenco/taskq/redisq/v4"
 	"github.com/vmihailenco/taskq/v4"
@@ -26,15 +29,16 @@ type TaskController struct {
 	TaskMap                  *taskq.TaskMap
 	TaskSchedulingMonitoring *monitor.SchedulingStatus
 	admission                *taskAdmission
+	capacity                 int
 }
 
 // NewTaskController initializes and returns a new TaskController.
 // It sets up the task queue backed either by Redis (if provided) or an in-memory queue.
 // maximumJobsQueueSize controls the queue buffer size.
-// The function also starts consumers if Redis is used and purges the queue at startup.
+// Redis consumers are started after handlers and the store are initialized.
 func NewTaskController(ctx context.Context, r *redis.Client, maximumJobsQueueSize int) (t TaskController) {
 	// Start an OpenTelemetry tracing span for monitoring initialization time
-	ctx, span := otel.Tracer(tracerName).Start(ctx, "controller:NewTaskController")
+	_, span := otel.Tracer(tracerName).Start(ctx, "controller:NewTaskController")
 	defer span.End()
 
 	// Initialize the TaskMap that will register task handlers
@@ -51,7 +55,8 @@ func NewTaskController(ctx context.Context, r *redis.Client, maximumJobsQueueSiz
 	// Use Redis-backed queue if redis client is provided, else use in-memory queue
 	if r != nil {
 		t.Factory = redisq.NewFactory() // Redis-backed task queue factory
-		queueOptions.Redis = r          // Set Redis client in queue options
+		queueOptions.Handler = ownedTaskHandler{tasks: t.TaskMap, redis: r}
+		queueOptions.Redis = r // Set Redis client in queue options
 	} else {
 		t.Factory = memqueue.NewFactory() // In-memory task queue factory
 	}
@@ -59,25 +64,15 @@ func NewTaskController(ctx context.Context, r *redis.Client, maximumJobsQueueSiz
 	// Register the queue using the factory with the configured options
 	t.Queue = t.Factory.RegisterQueue(queueOptions)
 
-	// Purge the queue to start fresh - caution advised if running in HA setups
-	if err := t.Queue.Purge(ctx); err != nil {
-		log.WithContext(ctx).
-			WithError(err).
-			Error("purging the pulling queue")
-	}
-
-	// If Redis is used, start the queue consumers to process tasks asynchronously
-	if r != nil {
-		if err := t.Factory.StartConsumers(context.TODO()); err != nil {
-			log.WithContext(ctx).
-				WithError(err).
-				Fatal("starting consuming the task queue")
-		}
-	}
-
 	// Initialize the monitoring map to track scheduling status per task type
 	t.TaskSchedulingMonitoring = &monitor.SchedulingStatus{}
-	t.admission = newTaskAdmission(maximumJobsQueueSize)
+	if r == nil {
+		t.admission = newTaskAdmission(maximumJobsQueueSize)
+	}
+	if maximumJobsQueueSize < 1 {
+		maximumJobsQueueSize = 1
+	}
+	t.capacity = maximumJobsQueueSize
 
 	return
 }
@@ -606,60 +601,64 @@ func (c *Controller) ScheduleTask(ctx context.Context, tt schemas.TaskType, uniq
 		"task_unique_id": uniqueID,
 	}
 	task := c.TaskController.TaskMap.Get(string(tt))
-	msg := task.NewJob(args...)
+	if task == nil {
+		log.WithContext(ctx).WithFields(logFields).Error("unknown task")
+		return
+	}
 	admission := c.TaskController.admission
-	if admission == nil {
-		log.WithContext(ctx).WithFields(logFields).Error("task admission is not initialized")
-		return
-	}
-	if !admission.acquire() {
-		log.WithContext(ctx).
-			WithFields(logFields).
-			Warn("queue capacity exhausted, skipping scheduling of task")
-
+	if admission != nil && !admission.acquire() {
+		log.WithContext(ctx).WithFields(logFields).Warn("queue capacity exhausted, skipping scheduling of task")
 		return
 	}
 	if err := ctx.Err(); err != nil {
-		admission.discard()
+		if admission != nil {
+			admission.discard()
+		}
 		return
 	}
-
-	queued, err := c.Store.QueueTask(ctx, tt, uniqueID, c.UUID.String())
-	if err != nil {
-		admission.discard()
-		log.WithContext(ctx).
-			WithFields(logFields).
-			Warn("unable to declare the queueing, skipping scheduling of task..")
-
+	reservationID := c.UUID.String() + "|" + uuid.NewString()
+	var queued bool
+	var err error
+	if redisStore, ok := c.Store.(*store.Redis); ok {
+		queued, err = redisStore.QueueTaskLimited(ctx, tt, uniqueID, reservationID, c.TaskController.capacity)
+	} else {
+		queued, err = c.Store.QueueTask(ctx, tt, uniqueID, reservationID)
+	}
+	if err != nil || !queued {
+		if admission != nil {
+			admission.discard()
+		}
+		if err != nil {
+			log.WithContext(ctx).WithFields(logFields).WithError(err).Warn("reserving task")
+		}
 		return
 	}
-
-	if !queued {
-		admission.discard()
-		log.WithFields(logFields).
-			Debug("task already queued, skipping scheduling of task..")
-
-		return
+	if admission != nil {
+		admission.track(taskKey{typeName: tt, id: uniqueID})
 	}
-	key := taskKey{typeName: tt, id: uniqueID}
-	admission.track(key)
+	if c.Redis != nil {
+		args = append(args, reservationMarker+reservationID+":"+uniqueID)
+	}
+	msg := task.NewJob(args...)
 	if err := ctx.Err(); err != nil {
-		c.rollbackTaskReservation(ctx, tt, uniqueID)
+		c.rollbackTaskReservation(ctx, tt, uniqueID, reservationID)
 		return
 	}
 	if err := c.TaskController.Queue.AddJob(ctx, msg); err != nil {
 		log.WithContext(ctx).WithFields(logFields).WithError(err).Warn("scheduling task")
-		c.rollbackTaskReservation(ctx, tt, uniqueID)
+		c.rollbackTaskReservation(ctx, tt, uniqueID, reservationID)
 	}
 }
 
-func (c *Controller) rollbackTaskReservation(ctx context.Context, tt schemas.TaskType, uniqueID string) {
+func (c *Controller) rollbackTaskReservation(ctx context.Context, tt schemas.TaskType, uniqueID, reservationID string) {
 	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
-	if err := c.Store.CancelTask(rollbackCtx, tt, uniqueID, c.UUID.String()); err != nil {
+	if err := c.Store.CancelTask(rollbackCtx, tt, uniqueID, reservationID); err != nil {
 		log.WithContext(ctx).WithError(err).Warn("rolling back task reservation")
 	}
-	c.TaskController.admission.release(taskKey{typeName: tt, id: uniqueID})
+	if c.TaskController.admission != nil {
+		c.TaskController.admission.release(taskKey{typeName: tt, id: uniqueID})
+	}
 }
 
 // ScheduleTaskWithTicker repeatedly schedules a task of the specified type `tt` at fixed intervals defined by `intervalSeconds`.
@@ -724,4 +723,54 @@ func (tc *TaskController) monitorNextTaskScheduling(tt schemas.TaskType, duratio
 // If no monitoring record exists, it creates one and sets the Last scheduled time to now.
 func (tc *TaskController) monitorLastTaskScheduling(tt schemas.TaskType) {
 	tc.TaskSchedulingMonitoring.SetLast(tt, time.Now())
+}
+
+const reservationMarker = "reservation-owner:v1:"
+
+type reservationOwnerKey struct{}
+
+type ownedTaskHandler struct {
+	tasks *taskq.TaskMap
+	redis *redis.Client
+}
+
+func (h ownedTaskHandler) HandleJob(ctx context.Context, job *taskq.Job) error {
+	encoded, err := job.MarshalArgs()
+	if err != nil {
+		return err
+	}
+	var args []msgpack.RawMessage
+	if err := msgpack.Unmarshal(encoded, &args); err != nil {
+		return err
+	}
+	if len(args) > 0 {
+		var marker string
+		if msgpack.Unmarshal(args[len(args)-1], &marker) == nil && strings.HasPrefix(marker, reservationMarker) {
+			parts := strings.SplitN(strings.TrimPrefix(marker, reservationMarker), ":", 2)
+			if len(parts) != 2 {
+				return nil
+			}
+			owner, err := h.redis.Get(ctx, "task:"+job.TaskName+":"+parts[1]).Result()
+			if err == redis.Nil {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			if owner != parts[0] {
+				return nil
+			}
+			ctx = context.WithValue(ctx, reservationOwnerKey{}, owner)
+			originalArgs, originalBin := job.Args, job.ArgsBin
+			defer func() {
+				job.Args, job.ArgsBin = originalArgs, originalBin
+			}()
+			job.ArgsBin, err = msgpack.Marshal(args[:len(args)-1])
+			if err != nil {
+				return err
+			}
+			job.Args = nil
+		}
+	}
+	return h.tasks.HandleJob(ctx, job)
 }

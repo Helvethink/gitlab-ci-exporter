@@ -71,7 +71,7 @@ type Store interface {
 	// twice at the risk of ending up with loads of dangling goroutines being locked
 	QueueTask(ctx context.Context, tt schemas.TaskType, taskUUID, processUUID string) (bool, error) // QueueTask Adds a task to the queue
 	CancelTask(ctx context.Context, tt schemas.TaskType, taskUUID, processUUID string) error        // CancelTask rolls back a reservation without counting an execution
-	DequeueTask(ctx context.Context, tt schemas.TaskType, taskUUID string) error                    // DequeueTask Removes a task from the queue
+	DequeueTask(ctx context.Context, tt schemas.TaskType, taskUUID string, owner string) error      // DequeueTask completes a task only when owner matches
 	CurrentlyQueuedTasksCount(ctx context.Context) (uint64, error)                                  // CurrentlyQueuedTasksCount Counts the number of currently queued tasks
 	ExecutedTasksCount(ctx context.Context) (uint64, error)
 }
