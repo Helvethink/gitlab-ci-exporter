@@ -2,6 +2,8 @@ package client
 
 import (
 	"context" // Package for managing context and cancellation
+	"errors"
+	"fmt"
 	"net/url" // Package for URL parsing and manipulation
 
 	log "github.com/sirupsen/logrus"              // Logging library
@@ -14,10 +16,14 @@ import (
 // Client represents a gRPC client for interacting with the monitoring server.
 type Client struct {
 	pb.MonitorClient // Embedded gRPC client for the Monitor service
+	conn             *grpc.ClientConn
 }
 
 // NewClient creates a new gRPC client for the monitoring server.
-func NewClient(ctx context.Context, endpoint *url.URL) *Client {
+func NewClient(ctx context.Context, endpoint *url.URL) (*Client, error) {
+	if endpoint == nil {
+		return nil, errors.New("monitoring endpoint is required")
+	}
 	// Log the attempt to establish a gRPC connection
 	log.WithField("endpoint", endpoint.String()).Debug("establishing gRPC connection to the server..")
 
@@ -29,8 +35,8 @@ func NewClient(ctx context.Context, endpoint *url.URL) *Client {
 		grpc.WithTransportCredentials(insecure.NewCredentials()), // Use insecure transport credentials
 	)
 	if err != nil {
-		// Log a fatal error if the connection could not be established
-		log.WithField("endpoint", endpoint.String()).WithField("error", err).Fatal("could not connect to the server")
+		// Return the connection error to the caller
+		return nil, fmt.Errorf("connect to monitoring server: %w", err)
 	}
 
 	// Log successful establishment of the gRPC connection
@@ -39,5 +45,11 @@ func NewClient(ctx context.Context, endpoint *url.URL) *Client {
 	// Create and return a new Client instance with the established connection
 	return &Client{
 		MonitorClient: pb.NewMonitorClient(conn), // Create a new MonitorClient using the established connection
-	}
+		conn:          conn,
+	}, nil
+}
+
+// Close closes the monitoring connection.
+func (c *Client) Close() error {
+	return c.conn.Close()
 }

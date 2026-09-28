@@ -28,7 +28,9 @@ func (c *Client) GetProject(ctx context.Context, name string) (*goGitlab.Project
 	}).Debug("reading project")
 
 	// Apply rate limiting to the request
-	c.rateLimit(ctx)
+	if limitErr := c.rateLimit(ctx); limitErr != nil {
+		return nil, limitErr
+	}
 
 	// Retrieve the project from GitLab
 	p, resp, err := c.Projects.GetProject(name, &goGitlab.GetProjectOptions{}, goGitlab.WithContext(ctx))
@@ -85,7 +87,9 @@ func (c *Client) ListProjects(ctx context.Context, w config.Wildcard) ([]schemas
 		)
 
 		// Apply rate limiting to the request
-		c.rateLimit(ctx)
+		if limitErr := c.rateLimit(ctx); limitErr != nil {
+			return projects, limitErr
+		}
 
 		// Retrieve projects based on the owner kind
 		switch w.Owner.Kind {

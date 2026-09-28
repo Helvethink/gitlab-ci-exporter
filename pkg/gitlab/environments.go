@@ -47,7 +47,9 @@ func (c *Client) GetProjectEnvironments(ctx context.Context, p schemas.Project) 
 	// Loop to handle paginated API responses
 	for {
 		// Respect API rate limits before making a request
-		c.rateLimit(ctx)
+		if limitErr := c.rateLimit(ctx); limitErr != nil {
+			return envs, limitErr
+		}
 
 		var (
 			glenvs []*goGitlab.Environment // environments returned by GitLab API
@@ -115,7 +117,9 @@ func (c *Client) GetEnvironment(ctx context.Context, project string, environment
 	}
 
 	// Respect API rate limits before making the request
-	c.rateLimit(ctx)
+	if limitErr := c.rateLimit(ctx); limitErr != nil {
+		return environment, limitErr
+	}
 
 	var (
 		e    *goGitlab.Environment // pointer to the GitLab Environment object returned by the API

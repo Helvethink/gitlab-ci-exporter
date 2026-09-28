@@ -43,7 +43,8 @@ func TestNewRedisLimiter(t *testing.T) {
 func TestRedisTake_FirstCallAllowed(t *testing.T) {
 	l := newTestRedisLimiter(t, 10)
 
-	d := l.Take(context.Background())
+	d, err := l.Take(context.Background())
+	require.NoError(t, err)
 
 	assert.GreaterOrEqual(t, d, time.Duration(0))
 	assert.Less(t, d, 200*time.Millisecond)
@@ -54,12 +55,37 @@ func TestRedisTake_SecondCallIsRateLimited(t *testing.T) {
 
 	ctx := context.Background()
 
-	d1 := l.Take(ctx)
-	d2 := l.Take(ctx)
+	d1, err := l.Take(ctx)
+	require.NoError(t, err)
+	d2, err := l.Take(ctx)
+	require.NoError(t, err)
 
 	assert.GreaterOrEqual(t, d1, time.Duration(0))
 	assert.Less(t, d1, 200*time.Millisecond)
 
 	assert.GreaterOrEqual(t, d2, 900*time.Millisecond)
 	assert.Less(t, d2, 2*time.Second)
+}
+
+func TestRedisTakeReturnsBackendError(t *testing.T) {
+	mr, err := miniredis.Run()
+	require.NoError(t, err)
+	defer mr.Close()
+	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer client.Close()
+	mr.SetError("redis unavailable")
+	limiter := NewRedisLimiter(client, 10)
+	elapsed, err := limiter.Take(context.Background())
+	require.ErrorContains(t, err, "redis unavailable")
+	assert.GreaterOrEqual(t, elapsed, 300*time.Millisecond)
+}
+
+func TestRedisTakeRespectsCancellation(t *testing.T) {
+	limiter := newTestRedisLimiter(t, 1)
+	_, err := limiter.Take(context.Background())
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err = limiter.Take(ctx)
+	require.ErrorIs(t, err, context.Canceled)
 }

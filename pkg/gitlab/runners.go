@@ -52,7 +52,9 @@ func (c *Client) GetProjectRunners(ctx context.Context, p schemas.Project) (runn
 	}
 
 	for {
-		c.rateLimit(ctx)
+		if limitErr := c.rateLimit(ctx); limitErr != nil {
+			return runners, limitErr
+		}
 
 		var (
 			glrunners []*goGitlab.Runner // Runners returned by Gitlab API
@@ -120,7 +122,9 @@ func (c *Client) GetRunner(ctx context.Context, project string, runnerID int64) 
 	}
 
 	// Respect API rate limits before making the request
-	c.rateLimit(ctx)
+	if limitErr := c.rateLimit(ctx); limitErr != nil {
+		return runner, limitErr
+	}
 
 	var (
 		r    *goGitlab.RunnerDetails // pointer to the GitLab runner object returned by the API

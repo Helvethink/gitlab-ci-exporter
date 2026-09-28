@@ -2,9 +2,11 @@ package server
 
 import (
 	"context" // Package for managing context and cancellation
-	"net"     // Package for network I/O
-	"os"      // Package for OS operations
-	"time"    // Package for time-related operations
+	"errors"
+	"fmt"
+	"net"  // Package for network I/O
+	"os"   // Package for OS operations
+	"time" // Package for time-related operations
 
 	log "github.com/sirupsen/logrus"                     // Logging library
 	"google.golang.org/grpc"                             // gRPC library for remote procedure calls
@@ -46,72 +48,85 @@ func NewServer(
 	return
 }
 
-// Serve starts the gRPC server to listen for incoming connections.
-func (s *Server) Serve() {
-	// Check if the internal monitoring listener address is set
-	if s.cfg.Global.InternalMonitoringListenerAddress == nil {
-		log.Info("internal monitoring listener address not set")
-		return
+// Serve listens for monitoring requests until ctx is canceled or serving fails.
+func (s *Server) Serve(ctx context.Context) (serveErr error) {
+	address := s.cfg.Global.InternalMonitoringListenerAddress
+	if address == nil {
+		return nil
 	}
 
-	// Log the internal monitoring listener address details
 	log.WithFields(log.Fields{
-		"scheme": s.cfg.Global.InternalMonitoringListenerAddress.Scheme,
-		"host":   s.cfg.Global.InternalMonitoringListenerAddress.Host,
-		"path":   s.cfg.Global.InternalMonitoringListenerAddress.Path,
+		"scheme": address.Scheme,
+		"host":   address.Host,
+		"path":   address.Path,
 	}).Info("internal monitoring listener set")
 
-	// Create a new gRPC server
+	var listener net.Listener
+	if address.Scheme == "unix" {
+		unixAddress, err := net.ResolveUnixAddr("unix", address.Path)
+		if err != nil {
+			return fmt.Errorf("resolve monitoring socket: %w", err)
+		}
+		if _, err := os.Stat(address.Path); err == nil {
+			if err := os.Remove(address.Path); err != nil {
+				return fmt.Errorf("remove existing monitoring socket: %w", err)
+			}
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("stat monitoring socket: %w", err)
+		}
+		listener, err = net.ListenUnix("unix", unixAddress)
+		if err != nil {
+			return fmt.Errorf("listen on monitoring socket: %w", err)
+		}
+	} else {
+		var err error
+		listener, err = net.Listen(address.Scheme, address.Host)
+		if err != nil {
+			return fmt.Errorf("listen for monitoring: %w", err)
+		}
+	}
+	defer func() {
+		if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+			serveErr = errors.Join(serveErr, fmt.Errorf("close monitoring listener: %w", err))
+		}
+		if address.Scheme == "unix" {
+			if err := os.Remove(address.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
+				serveErr = errors.Join(serveErr, fmt.Errorf("remove monitoring socket: %w", err))
+			}
+		}
+	}()
+
 	grpcServer := grpc.NewServer()
 	pb.RegisterMonitorServer(grpcServer, s)
-
-	var (
-		l   net.Listener
-		err error
-	)
-
-	// Handle different listener schemes
-	switch s.cfg.Global.InternalMonitoringListenerAddress.Scheme {
-	case "unix":
-		// Resolve the Unix address
-		unixAddr, err := net.ResolveUnixAddr("unix", s.cfg.Global.InternalMonitoringListenerAddress.Path)
-		if err != nil {
-			log.WithError(err).Fatal()
-		}
-
-		// Remove the socket file if it already exists
-		if _, err := os.Stat(s.cfg.Global.InternalMonitoringListenerAddress.Path); err == nil {
-			if err := os.Remove(s.cfg.Global.InternalMonitoringListenerAddress.Path); err != nil {
-				log.WithError(err).Fatal()
+	watcherDone := make(chan struct{})
+	go func() {
+		select {
+		case <-watcherDone:
+			return
+		case <-ctx.Done():
+			stopped := make(chan struct{})
+			go func() {
+				grpcServer.GracefulStop()
+				close(stopped)
+			}()
+			select {
+			case <-stopped:
+			case <-time.After(4 * time.Second):
+				grpcServer.Stop()
+				<-stopped
 			}
 		}
+	}()
 
-		// Ensure the socket file is removed when the server exits
-		defer func(path string) {
-			if err := os.Remove(path); err != nil {
-				log.WithError(err).Fatal()
-			}
-		}(s.cfg.Global.InternalMonitoringListenerAddress.Path)
-
-		// Listen on the Unix socket
-		if l, err = net.ListenUnix("unix", unixAddr); err != nil {
-			log.WithError(err).Fatal()
-		}
-
-	default:
-		// Listen on the network address
-		if l, err = net.Listen(s.cfg.Global.InternalMonitoringListenerAddress.Scheme, s.cfg.Global.InternalMonitoringListenerAddress.Host); err != nil {
-			log.WithError(err).Fatal()
-		}
+	err := grpcServer.Serve(listener)
+	close(watcherDone)
+	if ctx.Err() != nil {
+		return nil
 	}
-
-	// Ensure the listener is closed when the server exits
-	defer l.Close() // nolint: errcheck
-
-	// Start serving the gRPC server
-	if err = grpcServer.Serve(l); err != nil {
-		log.WithError(err).Fatal()
+	if err != nil {
+		return fmt.Errorf("serve monitoring: %w", err)
 	}
+	return errors.New("monitoring server stopped unexpectedly")
 }
 
 // GetConfig retrieves the server configuration.
@@ -269,9 +284,11 @@ func (s *Server) GetTelemetry(_ *pb.Empty, ts pb.Monitor_GetTelemetryServer) (er
 		}
 
 		// Send the telemetry data to the client
-		errTel := ts.Send(telemetry)
-		if errTel != nil {
-			log.WithError(errTel).Fatal()
+		if err := ts.Send(telemetry); err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			return err
 		}
 
 		// Wait for either the context to be done or the ticker to tick

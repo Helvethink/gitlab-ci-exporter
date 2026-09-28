@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -40,7 +41,8 @@ type Controller struct {
 
 	// UUID uniquely identifies this controller instance among others when running
 	// in clustered mode, facilitating coordination via Redis.
-	UUID uuid.UUID
+	UUID       uuid.UUID
+	redisReady atomic.Bool
 }
 
 // New creates and initializes a new Controller instance.
@@ -89,6 +91,7 @@ func New(ctx context.Context, cfg config.Config, version string) (c Controller, 
 		if _, err = redisStore.SetKeepalive(ctx, c.UUID.String(), 10*time.Second); err != nil {
 			return
 		}
+		c.redisReady.Store(true)
 	}
 
 	// Configure GitLab client, passing the app version for client identification

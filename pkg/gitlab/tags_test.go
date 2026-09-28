@@ -18,8 +18,8 @@ import (
 
 type noopLimiter struct{}
 
-func (noopLimiter) Take(ctx context.Context) time.Duration {
-	return 0
+func (noopLimiter) Take(ctx context.Context) (time.Duration, error) {
+	return 0, nil
 }
 
 var _ ratelimit.Limiter = noopLimiter{}

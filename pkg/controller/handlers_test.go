@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/paulbellamy/ratecounter"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -242,4 +244,28 @@ func newPipelineWebhookRequest() *http.Request {
 	req.Header.Set("X-Gitlab-Token", "expected-secret")
 	req.Header.Set("X-Gitlab-Event", "Pipeline Hook")
 	return req
+}
+
+func TestRedisReadinessDegradesAndRecovers(t *testing.T) {
+	mr, err := miniredis.Run()
+	require.NoError(t, err)
+	defer mr.Close()
+	redisClient := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer redisClient.Close()
+	c := &Controller{Redis: redisClient}
+	c.redisReady.Store(true)
+	readiness := c.HealthCheckHandler(context.Background())
+	check := func() int {
+		rr := httptest.NewRecorder()
+		readiness.ReadyEndpoint(rr, httptest.NewRequest(http.MethodGet, "/ready", nil))
+		return rr.Code
+	}
+	require.Equal(t, http.StatusOK, check())
+	mr.SetError("redis unavailable")
+	require.Equal(t, http.StatusServiceUnavailable, check())
+	mr.SetError("")
+	c.redisReady.Store(false)
+	require.Equal(t, http.StatusServiceUnavailable, check())
+	c.redisReady.Store(true)
+	require.Equal(t, http.StatusOK, check())
 }

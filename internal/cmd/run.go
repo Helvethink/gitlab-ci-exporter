@@ -38,16 +38,19 @@ func Run(cliCtx *cli.Context) (int, error) {
 		return 1, err
 	}
 
-	// Start the monitoring RPC server asynchronously in a separate goroutine
-	go func(c *controller.Controller) {
-		s := monitoringServer.NewServer(
+	var monitoringErrors chan error
+	if cfg.Global.InternalMonitoringListenerAddress != nil {
+		monitoringErrors = make(chan error, 1)
+		monitoring := monitoringServer.NewServer(
 			c.Gitlab,
 			c.Config,
 			c.Store,
 			c.TaskController.TaskSchedulingMonitoring,
 		)
-		s.Serve()
-	}(&c)
+		go func() {
+			monitoringErrors <- monitoring.Serve(ctx)
+		}()
+	}
 
 	// Setup channel to listen for OS termination signals for graceful shutdown
 	onShutdown := make(chan os.Signal, 1)
@@ -77,11 +80,17 @@ func Run(cliCtx *cli.Context) (int, error) {
 	).Info("http server started")
 
 	var runErr error
+	monitoringStopped := false
 	select {
 	case <-onShutdown:
 		log.Info("received signal, attempting to gracefully exit..")
 	case runErr = <-serverErrors:
 		log.WithContext(ctx).WithError(runErr).Error("http server stopped unexpectedly")
+	case runErr = <-monitoringErrors:
+		monitoringStopped = true
+		if runErr == nil {
+			runErr = errors.New("monitoring server stopped unexpectedly")
+		}
 	}
 	signal.Stop(onShutdown)
 	ctxCancel()
@@ -92,6 +101,15 @@ func Run(cliCtx *cli.Context) (int, error) {
 	for _, server := range servers {
 		if err := server.Shutdown(httpServerContext); err != nil {
 			runErr = errors.Join(runErr, err)
+		}
+	}
+
+	if monitoringErrors != nil && !monitoringStopped {
+		select {
+		case err := <-monitoringErrors:
+			runErr = errors.Join(runErr, err)
+		case <-httpServerContext.Done():
+			runErr = errors.Join(runErr, errors.New("monitoring server did not stop before shutdown deadline"))
 		}
 	}
 	if runErr != nil {

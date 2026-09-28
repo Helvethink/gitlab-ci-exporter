@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"net/url"
 	"testing"
 
@@ -21,10 +22,11 @@ func TestMonitor(t *testing.T) {
 	)
 
 	previousStart := startMonitorUI
-	startMonitorUI = func(version string, listenerAddress *url.URL) {
+	startMonitorUI = func(version string, listenerAddress *url.URL) error {
 		called = true
 		gotVersion = version
 		gotListenerURL = listenerAddress
+		return nil
 	}
 	t.Cleanup(func() {
 		startMonitorUI = previousStart
@@ -46,8 +48,9 @@ func TestMonitorReturnsErrorWhenInternalMonitoringAddressIsInvalid(t *testing.T)
 
 	called := false
 	previousStart := startMonitorUI
-	startMonitorUI = func(version string, listenerAddress *url.URL) {
+	startMonitorUI = func(version string, listenerAddress *url.URL) error {
 		called = true
+		return nil
 	}
 	t.Cleanup(func() {
 		startMonitorUI = previousStart
@@ -67,9 +70,10 @@ func TestMonitorWithoutInternalMonitoringAddress(t *testing.T) {
 	called := false
 	var gotListenerURL *url.URL
 	previousStart := startMonitorUI
-	startMonitorUI = func(version string, listenerAddress *url.URL) {
+	startMonitorUI = func(version string, listenerAddress *url.URL) error {
 		called = true
 		gotListenerURL = listenerAddress
+		return nil
 	}
 	t.Cleanup(func() {
 		startMonitorUI = previousStart
@@ -80,4 +84,17 @@ func TestMonitorWithoutInternalMonitoringAddress(t *testing.T) {
 	assert.Equal(t, 0, exitCode)
 	assert.True(t, called)
 	assert.Nil(t, gotListenerURL)
+}
+
+func TestMonitorReturnsUIError(t *testing.T) {
+	ctx, flags := NewTestContext()
+	flags.String("internal-monitoring-listener-address", "", "")
+	require.NoError(t, flags.Set("internal-monitoring-listener-address", "tcp://127.0.0.1:8081"))
+	uiErr := errors.New("monitoring connection failed")
+	previousStart := startMonitorUI
+	startMonitorUI = func(string, *url.URL) error { return uiErr }
+	t.Cleanup(func() { startMonitorUI = previousStart })
+	code, err := Monitor(ctx)
+	require.ErrorIs(t, err, uiErr)
+	assert.Equal(t, 1, code)
 }

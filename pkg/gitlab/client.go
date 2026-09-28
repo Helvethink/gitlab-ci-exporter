@@ -199,19 +199,22 @@ func (c *Client) ReadinessCheck(ctx context.Context) healthcheck.Check {
 // rateLimit enforces rate limiting by blocking until a token
 // is available from the configured RateLimiter. It also increments
 // internal counters for monitoring requests made.
-func (c *Client) rateLimit(ctx context.Context) {
+func (c *Client) rateLimit(ctx context.Context) error {
 	// Start a tracing span for observability
 	ctx, span := otel.Tracer(tracerName).Start(ctx, "gitlab:rateLimit")
 	defer span.End()
 
 	// Block until allowed by the RateLimiter (e.g., token bucket)
-	ratelimit.Take(ctx, c.RateLimiter)
+	if _, err := ratelimit.Take(ctx, c.RateLimiter); err != nil {
+		return fmt.Errorf("waiting for GitLab rate limit: %w", err)
+	}
 
 	// Increment the rate counter for monitoring the number of requests per second
 	c.RateCounter.Incr(1)
 
 	// Increment the atomic requests counter (total requests made)
 	c.RequestsCounter.Add(1)
+	return nil
 }
 
 // UpdateVersion safely updates the GitLab version stored in the client.

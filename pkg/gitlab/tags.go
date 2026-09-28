@@ -37,7 +37,9 @@ func (c *Client) GetProjectTags(ctx context.Context, p schemas.Project) (refs sc
 
 	// Loop through pages of tags
 	for {
-		c.rateLimit(ctx) // Apply rate limiting
+		if limitErr := c.rateLimit(ctx); limitErr != nil {
+			return refs, limitErr
+		} // Apply rate limiting
 
 		var (
 			tags []*goGitlab.Tag    // Slice to store tags
@@ -95,7 +97,9 @@ func (c *Client) GetProjectMostRecentTagCommit(ctx context.Context, projectName,
 
 	// Loop through pages of tags
 	for {
-		c.rateLimit(ctx) // Apply rate limiting
+		if limitErr := c.rateLimit(ctx); limitErr != nil {
+			return "", 0, limitErr
+		} // Apply rate limiting
 
 		// Retrieve tags from GitLab
 		tags, resp, err := c.Tags.ListTags(projectName, options, goGitlab.WithContext(ctx))

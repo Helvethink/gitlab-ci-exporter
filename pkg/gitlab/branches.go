@@ -44,7 +44,9 @@ func (c *Client) GetProjectBranches(ctx context.Context, p schemas.Project) (ref
 	// Loop through paginated results until all pages are processed
 	for {
 		// Apply rate limiting before each API call
-		c.rateLimit(ctx)
+		if limitErr := c.rateLimit(ctx); limitErr != nil {
+			return refs, limitErr
+		}
 
 		var (
 			branches []*goGitlab.Branch
@@ -99,7 +101,9 @@ func (c *Client) GetBranchLatestCommit(ctx context.Context, project, branch stri
 	}).Debug("reading project branch")
 
 	// Apply rate limiting before making the API request
-	c.rateLimit(ctx)
+	if limitErr := c.rateLimit(ctx); limitErr != nil {
+		return "", 0, limitErr
+	}
 
 	// Call GitLab API to get branch details
 	b, resp, err := c.Branches.GetBranch(project, branch, goGitlab.WithContext(ctx))

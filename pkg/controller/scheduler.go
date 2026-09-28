@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -541,39 +542,58 @@ func (c *Controller) Schedule(ctx context.Context, pull config.Pull, gc config.G
 	}
 }
 
-// ScheduleRedisSetKeepalive periodically updates a Redis key to signal that this instance
-// of the process is alive and actively processing tasks.
-//
-// It starts a new goroutine that:
-//   - Creates a ticker firing every 1 second.
-//   - On each tick, it calls SetKeepalive on the Redis store to update the key with
-//     a 10-second expiration, effectively refreshing the liveness indicator.
-//   - If the context is canceled, the goroutine logs and exits cleanly.
-//
-// If updating the keepalive key fails, it logs a fatal error and terminates the process,
-// since keepalive failures indicate a critical problem with Redis connectivity or availability.
+// ScheduleRedisSetKeepalive refreshes this replica's liveness marker.
+// Failed updates degrade readiness and are retried on the next tick.
 func (c *Controller) ScheduleRedisSetKeepalive(ctx context.Context) {
 	ctx, span := otel.Tracer(tracerName).Start(ctx, "controller:ScheduleRedisSetKeepalive")
 	defer span.End()
 
-	go func(ctx context.Context) {
-		ticker := time.NewTicker(time.Duration(1) * time.Second)
-
+	go func() {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
-				log.Info("stopped redis keepalive")
-
 				return
 			case <-ticker.C:
-				if _, err := c.Store.(*store.Redis).SetKeepalive(ctx, c.UUID.String(), time.Duration(10)*time.Second); err != nil {
-					log.WithContext(ctx).
-						WithError(err).
-						Fatal("setting keepalive")
+				err := c.setKeepaliveWithRetry(ctx)
+				if ctx.Err() != nil {
+					return
+				}
+				c.redisReady.Store(err == nil)
+				if err != nil {
+					log.WithContext(ctx).WithError(err).Warn("setting redis keepalive")
 				}
 			}
 		}
-	}(ctx)
+	}()
+}
+
+func (c *Controller) setKeepaliveWithRetry(ctx context.Context) error {
+	const attempts = 3
+	const backoff = 100 * time.Millisecond
+	var lastErr error
+	for attempt := range attempts {
+		checkCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		_, lastErr = c.Store.(*store.Redis).SetKeepalive(checkCtx, c.UUID.String(), 10*time.Second)
+		cancel()
+		if lastErr == nil {
+			return nil
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if attempt < attempts-1 {
+			timer := time.NewTimer(time.Duration(attempt+1) * backoff)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return ctx.Err()
+			case <-timer.C:
+			}
+		}
+	}
+	return fmt.Errorf("refresh redis keepalive: %w", lastErr)
 }
 
 // ScheduleTask schedules a new task of type `tt` with a unique identifier `uniqueID` and optional arguments.
