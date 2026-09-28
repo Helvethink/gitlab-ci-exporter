@@ -99,7 +99,9 @@ func (s *Server) Serve(ctx context.Context) (serveErr error) {
 	grpcServer := grpc.NewServer()
 	pb.RegisterMonitorServer(grpcServer, s)
 	watcherDone := make(chan struct{})
+	watcherFinished := make(chan struct{})
 	go func() {
+		defer close(watcherFinished)
 		select {
 		case <-watcherDone:
 			return
@@ -120,6 +122,7 @@ func (s *Server) Serve(ctx context.Context) (serveErr error) {
 
 	err := grpcServer.Serve(listener)
 	close(watcherDone)
+	<-watcherFinished
 	if ctx.Err() != nil {
 		return nil
 	}

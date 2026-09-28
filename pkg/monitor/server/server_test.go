@@ -293,3 +293,48 @@ func TestDisconnectedTelemetryClientDoesNotStopServer(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, configReply)
 }
+
+func TestServeStopsActiveTelemetryStream(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "monitor.sock")
+	cfg := config.New()
+	cfg.Global.InternalMonitoringListenerAddress = &url.URL{Scheme: "unix", Path: path}
+	g := &gitlab.Client{RateCounter: ratecounter.NewRateCounter(time.Second)}
+	server := NewServer(g, cfg, store.NewLocalStore(), nil)
+	appCtx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- server.Serve(appCtx) }()
+	defer cancel()
+
+	conn, err := grpc.NewClient("unix://"+path, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer conn.Close()
+	client := pb.NewMonitorClient(conn)
+	require.Eventually(t, func() bool {
+		callCtx, stop := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer stop()
+		_, err := client.GetConfig(callCtx, &pb.Empty{})
+		return err == nil
+	}, 3*time.Second, 10*time.Millisecond)
+
+	streamCtx, stopStream := context.WithTimeout(context.Background(), 6*time.Second)
+	defer stopStream()
+	stream, err := client.GetTelemetry(streamCtx, &pb.Empty{})
+	require.NoError(t, err)
+	_, err = stream.Recv()
+	require.NoError(t, err)
+
+	cancel()
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("active telemetry stream prevented shutdown")
+	}
+	for {
+		_, err = stream.Recv()
+		if err != nil {
+			break
+		}
+	}
+	require.Error(t, err)
+}

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -18,7 +19,10 @@ import (
 	monitoringServer "github.com/helvethink/gitlab-ci-exporter/pkg/monitor/server"
 )
 
-const httpShutdownTimeout = 5 * time.Second
+const (
+	httpShutdownTimeout        = 5 * time.Second
+	applicationShutdownTimeout = 15 * time.Second
+)
 
 // Run launches the exporter.
 func Run(cliCtx *cli.Context) (int, error) {
@@ -56,7 +60,7 @@ func Run(cliCtx *cli.Context) (int, error) {
 	onShutdown := make(chan os.Signal, 1)
 	signal.Notify(onShutdown, syscall.SIGINT, syscall.SIGTERM, syscall.SIGABRT)
 
-	servers := []*http.Server{newPublicHTTPServer(ctx, &c)}
+	servers := []*http.Server{newPublicHTTPServer(ctx, c)}
 	if cfg.Server.EnablePprof {
 		servers = append(servers, newPprofHTTPServer(cfg.Server))
 	}
@@ -81,10 +85,15 @@ func Run(cliCtx *cli.Context) (int, error) {
 
 	var runErr error
 	monitoringStopped := false
+	stoppedHTTPServers := 0
 	select {
 	case <-onShutdown:
 		log.Info("received signal, attempting to gracefully exit..")
 	case runErr = <-serverErrors:
+		stoppedHTTPServers = 1
+		if runErr == nil {
+			runErr = errors.New("http server stopped unexpectedly")
+		}
 		log.WithContext(ctx).WithError(runErr).Error("http server stopped unexpectedly")
 	case runErr = <-monitoringErrors:
 		monitoringStopped = true
@@ -93,14 +102,34 @@ func Run(cliCtx *cli.Context) (int, error) {
 		}
 	}
 	signal.Stop(onShutdown)
+	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), applicationShutdownTimeout)
+	defer cancelShutdown()
+	httpCtx, cancelHTTP := context.WithTimeout(shutdownCtx, httpShutdownTimeout)
+	shutdownResults := make(chan error, len(servers))
+	for _, server := range servers {
+		go func(server *http.Server) {
+			shutdownResults <- server.Shutdown(httpCtx)
+		}(server)
+	}
+	for range servers {
+		select {
+		case err := <-shutdownResults:
+			runErr = errors.Join(runErr, err)
+		case <-shutdownCtx.Done():
+			runErr = errors.Join(runErr, fmt.Errorf("shut down HTTP servers: %w", shutdownCtx.Err()))
+		}
+	}
+	cancelHTTP()
 	ctxCancel()
 
-	httpServerContext, forceHTTPServerShutdown := context.WithTimeout(context.Background(), httpShutdownTimeout)
-	defer forceHTTPServerShutdown()
-
-	for _, server := range servers {
-		if err := server.Shutdown(httpServerContext); err != nil {
+	for stoppedHTTPServers < len(servers) {
+		select {
+		case err := <-serverErrors:
+			stoppedHTTPServers++
 			runErr = errors.Join(runErr, err)
+		case <-shutdownCtx.Done():
+			runErr = errors.Join(runErr, fmt.Errorf("wait for HTTP servers: %w", shutdownCtx.Err()))
+			stoppedHTTPServers = len(servers)
 		}
 	}
 
@@ -108,10 +137,11 @@ func Run(cliCtx *cli.Context) (int, error) {
 		select {
 		case err := <-monitoringErrors:
 			runErr = errors.Join(runErr, err)
-		case <-httpServerContext.Done():
-			runErr = errors.Join(runErr, errors.New("monitoring server did not stop before shutdown deadline"))
+		case <-shutdownCtx.Done():
+			runErr = errors.Join(runErr, fmt.Errorf("wait for monitoring server: %w", shutdownCtx.Err()))
 		}
 	}
+	runErr = errors.Join(runErr, c.Close(shutdownCtx))
 	if runErr != nil {
 		return 1, runErr
 	}
@@ -166,7 +196,9 @@ func newHTTPServer(address string, handler http.Handler, cfg config.Server) *htt
 }
 
 func serveHTTP(server *http.Server, errCh chan<- error) {
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		errCh <- err
+	err := server.ListenAndServe()
+	if errors.Is(err, http.ErrServerClosed) {
+		err = nil
 	}
+	errCh <- err
 }

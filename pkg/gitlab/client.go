@@ -47,6 +47,21 @@ type Client struct {
 	mutex           sync.RWMutex  // mutex protects concurrent access to mutable shared fields like version and counters.
 }
 
+// CloseIdleConnections releases idle GitLab API and readiness HTTP connections.
+func (c *Client) CloseIdleConnections() {
+	if c == nil {
+		return
+	}
+	if c.Client != nil {
+		if httpClient := c.HTTPClient(); httpClient != nil {
+			httpClient.CloseIdleConnections()
+		}
+	}
+	if c.Readiness.HTTPClient != nil {
+		c.Readiness.HTTPClient.CloseIdleConnections()
+	}
+}
+
 // RateLimitSnapshot contains quota values from one GitLab response.
 type RateLimitSnapshot struct {
 	Remaining int

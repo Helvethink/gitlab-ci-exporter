@@ -234,3 +234,28 @@ func TestGitLabRequestReturnsLimiterError(t *testing.T) {
 	assert.Zero(t, requests.Load())
 	assert.Zero(t, c.RequestsCounter.Load())
 }
+
+type closingHTTPTransport struct {
+	http.RoundTripper
+	closed bool
+}
+
+func (t *closingHTTPTransport) CloseIdleConnections() {
+	t.closed = true
+}
+
+func TestClientClosesIdleHTTPConnections(t *testing.T) {
+	c, err := NewClient(ClientConfig{
+		URL:         "https://gitlab.example.com/api/v4",
+		Token:       "test-token",
+		RateLimiter: &mockLimiter{},
+	})
+	require.NoError(t, err)
+	apiTransport := &closingHTTPTransport{}
+	readinessTransport := &closingHTTPTransport{}
+	c.HTTPClient().Transport = apiTransport
+	c.Readiness.HTTPClient.Transport = readinessTransport
+	c.CloseIdleConnections()
+	assert.True(t, apiTransport.closed)
+	assert.True(t, readinessTransport.closed)
+}
