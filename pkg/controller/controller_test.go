@@ -2,7 +2,10 @@ package controller
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/stretchr/testify/assert"
@@ -66,21 +69,23 @@ func TestDequeueTaskRemovesTaskFromStore(t *testing.T) {
 }
 
 func TestConfigureTracingWithoutEndpointReturnsNil(t *testing.T) {
-	assert.NoError(t, configureTracing(context.Background(), ""))
+	provider, err := configureTracing(context.Background(), "")
+	assert.NoError(t, err)
+	assert.Nil(t, provider)
 }
 
 func TestConfigureGitlabInitializesClient(t *testing.T) {
 	c := &Controller{}
 
 	err := c.configureGitlab(config.Gitlab{
-		URL:                         "https://gitlab.example.com",
-		HealthURL:                   "https://gitlab.example.com/-/health",
-		Token:                       "test-token",
-		EnableTLSVerify:             true,
-		MaximumRequestsPerSecond:    5,
-		BurstableRequestsPerSecond:  10,
-		MaximumJobsQueueSize:        10,
-		EnableHealthCheck:           true,
+		URL:                        "https://gitlab.example.com",
+		HealthURL:                  "https://gitlab.example.com/-/health",
+		Token:                      "test-token",
+		EnableTLSVerify:            true,
+		MaximumRequestsPerSecond:   5,
+		BurstableRequestsPerSecond: 10,
+		MaximumJobsQueueSize:       10,
+		EnableHealthCheck:          true,
 	}, "1.2.3")
 	require.NoError(t, err)
 
@@ -121,4 +126,32 @@ func TestConfigureRedisWithInvalidURLReturnsError(t *testing.T) {
 		URL: "://bad-url",
 	})
 	require.Error(t, err)
+}
+
+func TestNewControllerClosesStartedResources(t *testing.T) {
+	mr := miniredis.RunT(t)
+	gitlabServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("{}"))
+	}))
+	defer gitlabServer.Close()
+	cfg := config.New()
+	cfg.Redis.URL = "redis://" + mr.Addr()
+	cfg.Gitlab.URL = gitlabServer.URL + "/api/v4"
+	cfg.Gitlab.Token = "test-token"
+	cfg.Pull = config.Pull{}
+	cfg.GarbageCollect = config.GarbageCollect{}
+	cfg.Pull.Metrics.Scheduled = true
+	cfg.Pull.Metrics.IntervalSeconds = 1
+
+	appCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	c, err := New(appCtx, cfg, "test")
+	require.NoError(t, err)
+	require.NotNil(t, c)
+	shutdownCtx, stop := context.WithTimeout(context.Background(), 3*time.Second)
+	defer stop()
+	require.NoError(t, c.Close(shutdownCtx))
+	assert.False(t, c.startBackground(func() {}))
+	assert.Error(t, c.Redis.Ping(context.Background()).Err())
 }

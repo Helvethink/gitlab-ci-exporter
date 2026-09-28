@@ -233,14 +233,15 @@ func isSupportedWebhookEvent(event any) bool {
 func (h *webhookHandler) submit(event any) bool {
 	select {
 	case h.processingSlots <- struct{}{}:
-		go func() {
+		if !h.controller.startBackground(func() {
 			defer func() { <-h.processingSlots }()
-
 			ctx, span := otel.Tracer(tracerName).Start(h.applicationContext, "controller:processWebhookEvent")
 			defer span.End()
-
 			h.process(ctx, event)
-		}()
+		}) {
+			<-h.processingSlots
+			return false
+		}
 		return true
 	default:
 		return false

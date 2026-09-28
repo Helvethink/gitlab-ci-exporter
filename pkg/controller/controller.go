@@ -2,6 +2,8 @@ package controller
 
 import (
 	"context"
+	stdliberrors "errors"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 
 	"github.com/helvethink/gitlab-ci-exporter/pkg/config"
@@ -41,8 +44,13 @@ type Controller struct {
 
 	// UUID uniquely identifies this controller instance among others when running
 	// in clustered mode, facilitating coordination via Redis.
-	UUID       uuid.UUID
-	redisReady atomic.Bool
+	UUID                   uuid.UUID
+	redisReady             atomic.Bool
+	background             *backgroundTasks
+	closeOnce              sync.Once
+	closeErr               error
+	tracerProvider         *sdktrace.TracerProvider
+	previousTracerProvider trace.TracerProvider
 }
 
 // New creates and initializes a new Controller instance.
@@ -56,22 +64,35 @@ type Controller struct {
 // Returns:
 // - c: Initialized Controller instance.
 // - err: Any error encountered during setup.
-func New(ctx context.Context, cfg config.Config, version string) (c Controller, err error) {
+func New(ctx context.Context, cfg config.Config, version string) (c *Controller, err error) {
+	lifecycleCtx, cancel := context.WithCancel(ctx)
+	c = &Controller{background: &backgroundTasks{cancel: cancel}}
+	defer func() {
+		if err != nil {
+			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cleanupCancel()
+			err = stdliberrors.Join(err, c.Close(cleanupCtx))
+			c = nil
+		}
+	}()
 	c.Config = cfg      // Store configuration
 	c.UUID = uuid.New() // Generate a new UUID for this controller instance
 
 	// Configure distributed tracing if an OpenTelemetry gRPC endpoint is specified
-	if err = configureTracing(ctx, cfg.OpenTelemetry.GRPCEndpoint); err != nil {
+	if cfg.OpenTelemetry.GRPCEndpoint != "" {
+		c.previousTracerProvider = otel.GetTracerProvider()
+	}
+	if c.tracerProvider, err = configureTracing(lifecycleCtx, cfg.OpenTelemetry.GRPCEndpoint); err != nil {
 		return
 	}
 
 	// Initialize Redis connection with provided URL
-	if err = c.configureRedis(ctx, &cfg.Redis); err != nil {
+	if err = c.configureRedis(lifecycleCtx, &cfg.Redis); err != nil {
 		return
 	}
 
 	// Create a task controller to manage job queues with a maximum size from config
-	c.TaskController = NewTaskController(ctx, c.Redis, cfg.Gitlab.MaximumJobsQueueSize)
+	c.TaskController = NewTaskController(lifecycleCtx, c.Redis, cfg.Gitlab.MaximumJobsQueueSize)
 	c.registerTasks() // Register the tasks that the controller can run
 
 	// Initialize the storage interface which will use Redis and configured projects
@@ -85,10 +106,10 @@ func New(ctx context.Context, cfg config.Config, version string) (c Controller, 
 			Metrics:     cfg.Redis.MetricTTL,
 		}))
 	}
-	c.Store = store.New(ctx, redisStore, c.Config.Projects)
+	c.Store = store.New(lifecycleCtx, redisStore, c.Config.Projects)
 
 	if redisStore != nil {
-		if _, err = redisStore.SetKeepalive(ctx, c.UUID.String(), 10*time.Second); err != nil {
+		if _, err = redisStore.SetKeepalive(lifecycleCtx, c.UUID.String(), 10*time.Second); err != nil {
 			return
 		}
 		c.redisReady.Store(true)
@@ -100,13 +121,13 @@ func New(ctx context.Context, cfg config.Config, version string) (c Controller, 
 	}
 
 	if c.Redis != nil {
-		if err = c.TaskController.Factory.StartConsumers(ctx); err != nil {
+		if err = c.TaskController.Factory.StartConsumers(lifecycleCtx); err != nil {
 			return
 		}
 	}
 
 	// Start background schedulers for pulling data and garbage collection based on config
-	c.Schedule(ctx, cfg.Pull, cfg.GarbageCollect)
+	c.Schedule(lifecycleCtx, cfg.Pull, cfg.GarbageCollect)
 
 	return
 }
@@ -166,11 +187,11 @@ func (c *Controller) dequeueTask(ctx context.Context, tt schemas.TaskType, uniqu
 
 // configureTracing sets up OpenTelemetry tracing via a gRPC endpoint.
 // If no endpoint is provided, tracing support is skipped.
-func configureTracing(ctx context.Context, grpcEndpoint string) error {
+func configureTracing(ctx context.Context, grpcEndpoint string) (*sdktrace.TracerProvider, error) {
 	// If no gRPC endpoint is specified, log that tracing will be skipped and return nil
 	if len(grpcEndpoint) == 0 {
 		log.Debug("open-telemetry.grpc_endpoint is not configured, skipping open telemetry support")
-		return nil
+		return nil, nil
 	}
 
 	// Log that a gRPC endpoint is configured and tracing initialization is starting
@@ -190,7 +211,7 @@ func configureTracing(ctx context.Context, grpcEndpoint string) error {
 	traceExp, err := otlptrace.New(ctx, traceClient)
 	if err != nil {
 		// Return error if exporter creation fails
-		return err
+		return nil, err
 	}
 
 	// Create a resource describing this application with metadata from environment,
@@ -205,8 +226,7 @@ func configureTracing(ctx context.Context, grpcEndpoint string) error {
 		),
 	)
 	if err != nil {
-		// Return error if resource creation fails
-		return err
+		return nil, stdliberrors.Join(err, traceExp.Shutdown(ctx))
 	}
 
 	// Create a batch span processor to buffer and send spans efficiently to the exporter
@@ -224,7 +244,7 @@ func configureTracing(ctx context.Context, grpcEndpoint string) error {
 	otel.SetTracerProvider(tracerProvider)
 
 	// Return nil to indicate successful setup
-	return nil
+	return tracerProvider, nil
 }
 
 // configureGitlab initializes the GitLab client with the given configuration and version.

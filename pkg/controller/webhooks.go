@@ -87,7 +87,7 @@ func (c *Controller) processJobEvent(ctx context.Context, e goGitlab.JobEvent) {
 	}
 
 	// Fetch the full project metadata from GitLab using the project ID from the event
-	project, _, err := c.Gitlab.Projects.GetProject(e.ProjectID, nil)
+	project, _, err := c.Gitlab.Projects.GetProject(e.ProjectID, nil, goGitlab.WithContext(ctx))
 	if err != nil {
 		// Log the error if project retrieval fails and stop processing
 		log.WithContext(ctx).
@@ -299,7 +299,7 @@ func (c *Controller) triggerRefMetricsPull(ctx context.Context, ref schemas.Ref)
 
 				if matches {
 					// If matched, schedule a task to pull the entire project based on the wildcard config
-					c.ScheduleTask(context.TODO(), schemas.TaskTypePullProject, ref.Project.Name, ref.Project.Name, w.Pull)
+					c.ScheduleTask(ctx, schemas.TaskTypePullProject, ref.Project.Name, ref.Project.Name, w.Pull)
 					log.WithFields(logFields).Info("project ref not currently exported but its configuration matches a wildcard, triggering a pull of the project")
 				} else {
 					log.WithFields(logFields).Debug("project ref not matching wildcard, skipping..")
@@ -354,7 +354,7 @@ schedulePull:
 	log.WithFields(logFields).Info("received a pipeline webhook from GitLab for a ref, triggering metrics pull")
 
 	// TODO: When all metrics are sent in the webhook, this pull might be avoidable
-	c.ScheduleTask(context.TODO(), schemas.TaskTypePullRefMetrics, string(ref.Key()), ref)
+	c.ScheduleTask(ctx, schemas.TaskTypePullRefMetrics, string(ref.Key()), ref)
 }
 
 // processDeploymentEvent handles a GitLab deployment event by triggering a metrics pull
@@ -425,7 +425,7 @@ func (c *Controller) triggerEnvironmentMetricsPull(ctx context.Context, env sche
 
 				if matches {
 					// Schedule a project pull task for matching wildcard configuration
-					c.ScheduleTask(context.TODO(), schemas.TaskTypePullProject, env.ProjectName, env.ProjectName, w.Pull)
+					c.ScheduleTask(ctx, schemas.TaskTypePullProject, env.ProjectName, env.ProjectName, w.Pull)
 					log.WithFields(logFields).Info("project environment not currently exported but its configuration matches a wildcard, triggering a pull of the project")
 				} else {
 					log.WithFields(logFields).Debug("project ref not matching wildcard, skipping..")

@@ -506,14 +506,11 @@ func (c *Controller) Schedule(ctx context.Context, pull config.Pull, gc config.G
 	ctx, span := otel.Tracer(tracerName).Start(ctx, "controller:Schedule")
 	defer span.End()
 
-	go func() {
-		err := c.GetGitLabMetadata(ctx)
-		if err != nil {
-			log.WithContext(ctx).
-				WithError(err).
-				Error("error retrieving Gitlab Metadata from the store")
+	c.startBackground(func() {
+		if err := c.GetGitLabMetadata(ctx); err != nil && ctx.Err() == nil {
+			log.WithContext(ctx).WithError(err).Error("error retrieving GitLab metadata")
 		}
-	}()
+	})
 
 	for tt, cfg := range map[schemas.TaskType]config.SchedulerConfig{
 		schemas.TaskTypePullProjectsFromWildcards:    config.SchedulerConfig(pull.ProjectsFromWildcards),
@@ -548,7 +545,7 @@ func (c *Controller) ScheduleRedisSetKeepalive(ctx context.Context) {
 	ctx, span := otel.Tracer(tracerName).Start(ctx, "controller:ScheduleRedisSetKeepalive")
 	defer span.End()
 
-	go func() {
+	c.startBackground(func() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 		for {
@@ -566,7 +563,7 @@ func (c *Controller) ScheduleRedisSetKeepalive(ctx context.Context) {
 				}
 			}
 		}
-	}()
+	})
 }
 
 func (c *Controller) setKeepaliveWithRetry(ctx context.Context) error {
@@ -716,8 +713,9 @@ func (c *Controller) ScheduleTaskWithTicker(ctx context.Context, tt schemas.Task
 
 	c.TaskController.monitorNextTaskScheduling(tt, intervalSeconds)
 
-	go func(ctx context.Context) {
+	c.startBackground(func() {
 		ticker := time.NewTicker(time.Duration(intervalSeconds) * time.Second)
+		defer ticker.Stop()
 
 		for {
 			select {
@@ -730,7 +728,7 @@ func (c *Controller) ScheduleTaskWithTicker(ctx context.Context, tt schemas.Task
 				c.TaskController.monitorNextTaskScheduling(tt, intervalSeconds)
 			}
 		}
-	}(ctx)
+	})
 }
 
 // monitorNextTaskScheduling updates the monitoring status of the next expected execution time for the given task type `tt`.
