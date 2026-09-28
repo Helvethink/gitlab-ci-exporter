@@ -2,6 +2,7 @@ package gitlab
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -19,6 +20,7 @@ import (
 
 type mockLimiter struct {
 	called int32
+	err    error
 }
 
 func TestRateLimitSnapshotIsCoherentUnderConcurrentUpdates(t *testing.T) {
@@ -49,9 +51,9 @@ func TestRateLimitSnapshotIsCoherentUnderConcurrentUpdates(t *testing.T) {
 	wg.Wait()
 }
 
-func (m *mockLimiter) Take(ctx context.Context) time.Duration {
+func (m *mockLimiter) Take(ctx context.Context) (time.Duration, error) {
 	atomic.AddInt32(&m.called, 1)
-	return 0
+	return 0, m.err
 }
 
 var _ ratelimit.Limiter = (*mockLimiter)(nil)
@@ -154,7 +156,7 @@ func TestRateLimit(t *testing.T) {
 	}
 
 	before := c.RequestsCounter.Load()
-	c.rateLimit(context.Background())
+	require.NoError(t, c.rateLimit(context.Background()))
 
 	assert.Equal(t, int32(1), atomic.LoadInt32(&limiter.called))
 	assert.Equal(t, before+1, c.RequestsCounter.Load())
@@ -211,4 +213,24 @@ func TestRequestsRemaining_InvalidHeaders(t *testing.T) {
 	c.requestsRemaining(resp)
 
 	assert.Equal(t, RateLimitSnapshot{Remaining: 11, Limit: 22}, c.RateLimit())
+}
+
+func TestGitLabRequestReturnsLimiterError(t *testing.T) {
+	limiterErr := errors.New("redis unavailable")
+	limiter := &mockLimiter{err: limiterErr}
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		requests.Add(1)
+	}))
+	defer server.Close()
+	c, err := NewClient(ClientConfig{
+		URL:         server.URL + "/api/v4",
+		Token:       "test-token",
+		RateLimiter: limiter,
+	})
+	require.NoError(t, err)
+	_, err = c.GetProject(context.Background(), "group/project")
+	require.ErrorIs(t, err, limiterErr)
+	assert.Zero(t, requests.Load())
+	assert.Zero(t, c.RequestsCounter.Load())
 }

@@ -2,6 +2,11 @@ package server
 
 import (
 	"context"
+	"errors"
+	"net"
+	"net/url"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -9,6 +14,8 @@ import (
 	"github.com/paulbellamy/ratecounter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 
 	"github.com/helvethink/gitlab-ci-exporter/pkg/config"
@@ -20,12 +27,16 @@ import (
 )
 
 type telemetryStreamStub struct {
-	ctx    context.Context
-	cancel context.CancelFunc
-	sent   []*pb.Telemetry
+	ctx     context.Context
+	cancel  context.CancelFunc
+	sent    []*pb.Telemetry
+	sendErr error
 }
 
 func (s *telemetryStreamStub) Send(tel *pb.Telemetry) error {
+	if s.sendErr != nil {
+		return s.sendErr
+	}
 	s.sent = append(s.sent, tel)
 	s.cancel()
 	return nil
@@ -57,9 +68,7 @@ func TestServeWithoutInternalMonitoringAddressReturns(t *testing.T) {
 	s := NewServer(&gitlab.Client{}, config.New(), store.NewLocalStore(), nil)
 	s.cfg.Global.InternalMonitoringListenerAddress = nil
 
-	assert.NotPanics(t, func() {
-		s.Serve()
-	})
+	require.NoError(t, s.Serve(context.Background()))
 }
 
 func TestGetConfig(t *testing.T) {
@@ -190,4 +199,97 @@ func TestGetTelemetryDuringConcurrentScheduleUpdates(t *testing.T) {
 	require.NoError(t, s.GetTelemetry(&pb.Empty{}, stream))
 	wg.Wait()
 	require.Len(t, stream.sent, 1)
+}
+
+func TestServeReturnsListenerError(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer listener.Close()
+
+	cfg := config.New()
+	cfg.Global.InternalMonitoringListenerAddress = &url.URL{Scheme: "tcp", Host: listener.Addr().String()}
+	s := NewServer(&gitlab.Client{}, cfg, store.NewLocalStore(), nil)
+	require.Error(t, s.Serve(context.Background()))
+}
+
+func TestServeStopsAndRemovesSocket(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "monitor.sock")
+	cfg := config.New()
+	cfg.Global.InternalMonitoringListenerAddress = &url.URL{Scheme: "unix", Path: path}
+	s := NewServer(&gitlab.Client{}, cfg, store.NewLocalStore(), nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- s.Serve(ctx) }()
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(path)
+		return err == nil
+	}, time.Second, 10*time.Millisecond)
+	cancel()
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(6 * time.Second):
+		t.Fatal("monitoring server did not stop")
+	}
+	_, err := os.Stat(path)
+	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestGetTelemetrySendFailureIsPerClient(t *testing.T) {
+	g := &gitlab.Client{RateCounter: ratecounter.NewRateCounter(time.Second)}
+	s := NewServer(g, config.New(), store.NewLocalStore(), nil)
+	sendErr := errors.New("client disconnected")
+	stream := &telemetryStreamStub{ctx: context.Background(), sendErr: sendErr}
+	require.ErrorIs(t, s.GetTelemetry(&pb.Empty{}, stream), sendErr)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	healthyStream := &telemetryStreamStub{ctx: ctx, cancel: cancel}
+	require.NoError(t, s.GetTelemetry(&pb.Empty{}, healthyStream))
+	require.Len(t, healthyStream.sent, 1)
+}
+
+func TestDisconnectedTelemetryClientDoesNotStopServer(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "monitor.sock")
+	cfg := config.New()
+	cfg.Global.InternalMonitoringListenerAddress = &url.URL{Scheme: "unix", Path: path}
+	g := &gitlab.Client{RateCounter: ratecounter.NewRateCounter(time.Second)}
+	s := NewServer(g, cfg, store.NewLocalStore(), nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- s.Serve(ctx) }()
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case err := <-done:
+			require.NoError(t, err)
+		case <-time.After(6 * time.Second):
+			t.Error("monitoring server did not stop")
+		}
+	})
+
+	conn, err := grpc.NewClient("unix://"+path,
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
+	defer conn.Close()
+	client := pb.NewMonitorClient(conn)
+	require.Eventually(t, func() bool {
+		callCtx, callCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer callCancel()
+		_, err := client.GetConfig(callCtx, &pb.Empty{})
+		return err == nil
+	}, 3*time.Second, 10*time.Millisecond)
+	streamCtx, disconnect := context.WithCancel(context.Background())
+	first, err := client.GetTelemetry(streamCtx, &pb.Empty{})
+	require.NoError(t, err)
+	_, err = first.Recv()
+	require.NoError(t, err)
+	disconnect()
+
+	second, err := client.GetTelemetry(context.Background(), &pb.Empty{})
+	require.NoError(t, err)
+	_, err = second.Recv()
+	require.NoError(t, err)
+	configReply, err := client.GetConfig(context.Background(), &pb.Empty{})
+	require.NoError(t, err)
+	require.NotNil(t, configReply)
 }

@@ -4,8 +4,7 @@ import (
 	"context" // Package for managing context and cancellation
 	"time"    // Package for time-related operations
 
-	log "github.com/sirupsen/logrus" // Logging library
-	"golang.org/x/time/rate"         // Package for rate limiting functionality
+	"golang.org/x/time/rate" // Package for rate limiting functionality
 )
 
 // Local represents a local rate limiter using the golang.org/x/time/rate package.
@@ -24,17 +23,10 @@ func NewLocalLimiter(maximumRPS int, burstableRPS int) Limiter {
 }
 
 // Take attempts to allow an action under the rate limit and returns the duration taken.
-func (l Local) Take(ctx context.Context) time.Duration {
-	start := time.Now() // Record the start time
-
-	// Wait until the rate limiter allows the action to proceed
-	if err := l.Limiter.Wait(ctx); err != nil { // nolint: staticcheck
-		// Log a fatal error if there is an issue with the rate limiter
-		log.WithContext(ctx).
-			WithError(err).
-			Fatal()
+func (l Local) Take(ctx context.Context) (time.Duration, error) {
+	start := time.Now()
+	if err := l.Wait(ctx); err != nil {
+		return time.Since(start), err
 	}
-
-	// Return the duration taken to allow the action
-	return time.Since(start)
+	return time.Since(start), nil
 }

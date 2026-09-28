@@ -39,11 +39,18 @@ func TestNewClient(t *testing.T) {
 	endpoint, err := url.Parse("dns:///" + lis.Addr().String())
 	require.NoError(t, err)
 
-	c := NewClient(context.Background(), endpoint)
+	c, err := NewClient(context.Background(), endpoint)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = c.Close() })
 	require.NotNil(t, c)
 	require.NotNil(t, c.MonitorClient)
 
 	cfg, err := c.GetConfig(context.Background(), &pb.Empty{})
 	require.NoError(t, err)
 	assert.Equal(t, "test-config", cfg.GetContent())
+}
+
+func TestNewClientRequiresEndpoint(t *testing.T) {
+	_, err := NewClient(context.Background(), nil)
+	require.Error(t, err)
 }

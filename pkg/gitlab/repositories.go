@@ -30,7 +30,9 @@ func (c *Client) GetCommitCountBetweenRefs(ctx context.Context, project, from, t
 	}).Debug("comparing refs")
 
 	// Apply rate limiting to the request
-	c.rateLimit(ctx)
+	if limitErr := c.rateLimit(ctx); limitErr != nil {
+		return 0, limitErr
+	}
 
 	// Compare the two references using the GitLab API
 	cmp, resp, err := c.Repositories.Compare(project, &goGitlab.CompareOptions{

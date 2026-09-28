@@ -15,7 +15,8 @@ func TestNewLocalLimiter(t *testing.T) {
 	require.NotNil(t, l)
 
 	start := time.Now()
-	d := l.Take(context.Background())
+	d, err := l.Take(context.Background())
+	require.NoError(t, err)
 	elapsed := time.Since(start)
 
 	assert.GreaterOrEqual(t, d, time.Duration(0))
@@ -26,8 +27,10 @@ func TestLocalTake_RespectsRateLimit(t *testing.T) {
 	l := NewLocalLimiter(5, 1) // 1 token every 200ms, burst = 1
 	ctx := context.Background()
 
-	d1 := l.Take(ctx)
-	d2 := l.Take(ctx)
+	d1, err := l.Take(ctx)
+	require.NoError(t, err)
+	d2, err := l.Take(ctx)
+	require.NoError(t, err)
 
 	assert.GreaterOrEqual(t, d1, time.Duration(0))
 	assert.Less(t, d1, 50*time.Millisecond)
@@ -40,9 +43,12 @@ func TestLocalTake_AllowsBurst(t *testing.T) {
 	l := NewLocalLimiter(5, 2) // burst = 2
 	ctx := context.Background()
 
-	d1 := l.Take(ctx)
-	d2 := l.Take(ctx)
-	d3 := l.Take(ctx)
+	d1, err := l.Take(ctx)
+	require.NoError(t, err)
+	d2, err := l.Take(ctx)
+	require.NoError(t, err)
+	d3, err := l.Take(ctx)
+	require.NoError(t, err)
 
 	assert.GreaterOrEqual(t, d1, time.Duration(0))
 	assert.Less(t, d1, 50*time.Millisecond)

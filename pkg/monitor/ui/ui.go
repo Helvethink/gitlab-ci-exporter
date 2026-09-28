@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	log "github.com/sirupsen/logrus"
 	"github.com/xeonx/timeago"
 
 	"github.com/helvethink/gitlab-ci-exporter/pkg/monitor/client"
@@ -108,7 +106,10 @@ type model struct {
 	vp              viewport.Model
 	progress        *progress.Model
 	telemetry       *pb.Telemetry
-	telemetryStream chan *pb.Telemetry
+	telemetryStream chan tea.Msg
+	terminalErr     error
+	streamContext   context.Context
+	cancelStream    context.CancelFunc
 	tabID           int
 }
 
@@ -116,7 +117,7 @@ type model struct {
 func (m *model) renderConfigViewport() string {
 	config, err := m.client.GetConfig(context.TODO(), &pb.Empty{})
 	if err != nil || config == nil {
-		log.WithError(err).Fatal()
+		return fmt.Sprintf("Unable to load configuration: %v", err)
 	}
 
 	return config.GetContent()
@@ -212,24 +213,31 @@ func prettyTimeago(t time.Time) string {
 }
 
 // newModel initializes a new model instance.
-func newModel(version string, endpoint *url.URL) (m *model) {
+func newModel(version string, endpoint *url.URL) (*model, error) {
+	monitorClient, err := client.NewClient(context.Background(), endpoint)
+	if err != nil {
+		return nil, err
+	}
+	streamContext, cancelStream := context.WithCancel(context.Background())
 	p := progress.New(progress.WithScaledGradient("#80c904", "#ff9d5c"))
 
-	m = &model{
+	m := &model{
 		version:         version,
 		vp:              viewport.Model{},
-		telemetryStream: make(chan *pb.Telemetry),
+		telemetryStream: make(chan tea.Msg),
+		streamContext:   streamContext,
+		cancelStream:    cancelStream,
 		progress:        &p,
-		client:          client.NewClient(context.TODO(), endpoint),
+		client:          monitorClient,
 	}
 
-	return
+	return m, nil
 }
 
 // Init initializes the model and returns a command to fetch telemetry data.
 func (m *model) Init() tea.Cmd {
 	return tea.Batch(
-		m.streamTelemetry(context.TODO()),
+		m.streamTelemetry(m.streamContext),
 		waitForTelemetryUpdate(m.telemetryStream),
 	)
 }
@@ -247,6 +255,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyCtrlC, tea.KeyEsc:
+			m.cancelStream()
 			return m, tea.Quit
 		case tea.KeyLeft:
 			if m.tabID > 0 {
@@ -265,6 +274,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.vp = vp
 			return m, cmd
 		}
+	case error:
+		m.terminalErr = msg
+		m.cancelStream()
+		return m, tea.Quit
 	case *pb.Telemetry:
 		m.telemetry = msg
 		m.setPaneContent()
@@ -321,17 +334,25 @@ func (m *model) View() string {
 func (m *model) streamTelemetry(ctx context.Context) tea.Cmd {
 	c, err := m.client.GetTelemetry(ctx, &pb.Empty{})
 	if err != nil {
-		log.WithError(err).Fatal()
+		return func() tea.Msg { return err }
 	}
 
 	go func(m *model) {
 		for {
 			telemetry, err := c.Recv()
 			if err != nil {
-				log.WithError(err).Fatal()
+				select {
+				case m.telemetryStream <- err:
+				case <-ctx.Done():
+				}
+				return
 			}
 
-			m.telemetryStream <- telemetry
+			select {
+			case m.telemetryStream <- telemetry:
+			case <-ctx.Done():
+				return
+			}
 		}
 	}(m)
 
@@ -339,19 +360,25 @@ func (m *model) streamTelemetry(ctx context.Context) tea.Cmd {
 }
 
 // waitForTelemetryUpdate waits for a telemetry update and returns a command.
-func waitForTelemetryUpdate(t chan *pb.Telemetry) tea.Cmd {
+func waitForTelemetryUpdate(t chan tea.Msg) tea.Cmd {
 	return func() tea.Msg {
 		return <-t
 	}
 }
 
 // Start initializes and starts the UI program.
-func Start(version string, listenerAddress *url.URL) {
-	// nolint: staticcheck
-	if err := tea.NewProgram(newModel(version, listenerAddress), tea.WithAltScreen()).Start(); err != nil {
-		fmt.Println("Error running program:", err)
-		os.Exit(1)
+func Start(version string, listenerAddress *url.URL) error {
+	m, err := newModel(version, listenerAddress)
+	if err != nil {
+		return err
 	}
+	defer m.cancelStream()
+	defer func() { _ = m.client.Close() }()
+	// nolint: staticcheck
+	if err := tea.NewProgram(m, tea.WithAltScreen()).Start(); err != nil {
+		return fmt.Errorf("run monitoring UI: %w", err)
+	}
+	return m.terminalErr
 }
 
 // setPaneContent sets the content of the viewport pane based on the current tab.

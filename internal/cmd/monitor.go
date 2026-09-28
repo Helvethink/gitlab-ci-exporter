@@ -17,10 +17,12 @@ func Monitor(ctx *cli.Context) (int, error) {
 	}
 
 	// Start the monitoring UI with app version and configured listener address
-	startMonitorUI(
+	if err := startMonitorUI(
 		ctx.App.Version,
 		cfg.InternalMonitoringListenerAddress,
-	)
+	); err != nil {
+		return 1, err
+	}
 
 	// Return success exit code
 	return 0, nil

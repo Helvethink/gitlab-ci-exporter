@@ -14,10 +14,10 @@ type mockLimiter struct {
 	delay  time.Duration
 }
 
-func (m *mockLimiter) Take(ctx context.Context) time.Duration {
+func (m *mockLimiter) Take(ctx context.Context) (time.Duration, error) {
 	m.called = true
 	m.ctx = ctx
-	return m.delay
+	return m.delay, nil
 }
 
 func TestTake(t *testing.T) {
@@ -26,7 +26,8 @@ func TestTake(t *testing.T) {
 		delay: 10 * time.Millisecond,
 	}
 
-	Take(ctx, m)
+	_, err := Take(ctx, m)
+	assert.NoError(t, err)
 
 	assert.True(t, m.called)
 	assert.Equal(t, ctx, m.ctx)

@@ -27,7 +27,9 @@ func (c *Client) GetRefPipeline(ctx context.Context, ref schemas.Ref, pipelineID
 	span.SetAttributes(attribute.String("ref_name", ref.Name))
 	span.SetAttributes(attribute.Int64("pipeline_id", pipelineID))
 
-	c.rateLimit(ctx)
+	if limitErr := c.rateLimit(ctx); limitErr != nil {
+		return p, limitErr
+	}
 
 	// Fetch pipeline information from GitLab
 	gp, resp, err := c.Pipelines.GetPipeline(ref.Project.Name, pipelineID, goGitlab.WithContext(ctx))
@@ -78,7 +80,9 @@ func (c *Client) GetProjectPipelines(
 	fields["page"] = options.Page
 
 	log.WithFields(fields).Trace("listing project pipelines")
-	c.rateLimit(ctx)
+	if limitErr := c.rateLimit(ctx); limitErr != nil {
+		return nil, nil, limitErr
+	}
 
 	// Fetch pipeline list from GitLab API
 	pipelines, resp, err := c.Pipelines.ListProjectPipelines(projectName, options, goGitlab.WithContext(ctx))
@@ -127,7 +131,9 @@ func (c *Client) GetRefPipelineVariablesAsConcatenatedString(ctx context.Context
 		)
 	}
 
-	c.rateLimit(ctx)
+	if limitErr := c.rateLimit(ctx); limitErr != nil {
+		return "", limitErr
+	}
 
 	// Fetch variables from GitLab
 	variables, resp, err := c.Pipelines.GetPipelineVariables(ref.Project.Name, pipeline.ID, goGitlab.WithContext(ctx))
@@ -350,7 +356,9 @@ func (c *Client) GetRefPipelineTestReport(ctx context.Context, ref schemas.Ref) 
 	).Debug("fetching pipeline test report")
 
 	// Rate limit the request to avoid hitting GitLab API limits
-	c.rateLimit(ctx)
+	if limitErr := c.rateLimit(ctx); limitErr != nil {
+		return schemas.TestReport{}, limitErr
+	}
 
 	// Internal type to keep track of pipelines to process
 	type pipelineDef struct {

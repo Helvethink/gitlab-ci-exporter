@@ -19,8 +19,8 @@ import (
 
 type noopLimiterProjectsTests struct{}
 
-func (noopLimiterProjectsTests) Take(ctx context.Context) time.Duration {
-	return 0
+func (noopLimiterProjectsTests) Take(ctx context.Context) (time.Duration, error) {
+	return 0, nil
 }
 
 func newTestGitLabClientForProjects(t *testing.T, handler http.HandlerFunc) *Client {

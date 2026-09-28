@@ -345,3 +345,21 @@ func TestRedisRestartTakeoverSkipsStalePendingJob(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 	require.Equal(t, int32(1), calls.Load())
 }
+
+func TestKeepaliveFailureReturnsAndRecovers(t *testing.T) {
+	mr, err := miniredis.Run()
+	require.NoError(t, err)
+	defer mr.Close()
+	redisClient := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	defer redisClient.Close()
+	c := &Controller{
+		Redis: redisClient,
+		Store: store.NewRedisStore(redisClient),
+		UUID:  uuid.New(),
+	}
+	mr.SetError("redis unavailable")
+	err = c.setKeepaliveWithRetry(context.Background())
+	require.ErrorContains(t, err, "redis unavailable")
+	mr.SetError("")
+	require.NoError(t, c.setKeepaliveWithRetry(context.Background()))
+}

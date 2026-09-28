@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/subtle"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"reflect"
+	"time"
 
 	"github.com/heptiolabs/healthcheck"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -42,6 +44,20 @@ func (c *Controller) HealthCheckHandler(ctx context.Context) (h healthcheck.Hand
 		// Otherwise, log a warning indicating that GitLab readiness checks are disabled
 		log.WithContext(ctx).
 			Warn("GitLab health check has been disabled. Readiness checks won't be operated.")
+	}
+
+	if c.Redis != nil {
+		h.AddReadinessCheck("redis-available", func() error {
+			if !c.redisReady.Load() {
+				return fmt.Errorf("redis keepalive unavailable")
+			}
+			checkCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			if err := c.Redis.Ping(checkCtx).Err(); err != nil {
+				return fmt.Errorf("ping redis: %w", err)
+			}
+			return nil
+		})
 	}
 
 	// Return the configured health check handler

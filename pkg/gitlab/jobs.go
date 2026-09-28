@@ -86,7 +86,9 @@ func (c *Client) ListPipelineJobs(ctx context.Context, projectNameOrID string, p
 	// Paginate through all pages of jobs
 	for {
 		// Respect rate limiting before making the API call
-		c.rateLimit(ctx)
+		if limitErr := c.rateLimit(ctx); limitErr != nil {
+			return jobs, limitErr
+		}
 
 		// Fetch jobs for the current page
 		foundJobs, resp, err = c.Jobs.ListPipelineJobs(projectNameOrID, pipelineID, options, goGitlab.WithContext(ctx))
@@ -151,7 +153,9 @@ func (c *Client) ListPipelineBridges(ctx context.Context, projectNameOrID string
 	// Loop to paginate through all available bridge jobs
 	for {
 		// Respect rate limits before performing API calls
-		c.rateLimit(ctx)
+		if limitErr := c.rateLimit(ctx); limitErr != nil {
+			return bridges, limitErr
+		}
 
 		// Fetch the bridge jobs from the GitLab API
 		foundBridges, resp, err = c.Jobs.ListPipelineBridges(projectNameOrID, pipelineID, options, goGitlab.WithContext(ctx))
@@ -311,7 +315,9 @@ func (c *Client) ListRefMostRecentJobs(ctx context.Context, ref schemas.Ref) (jo
 
 	// Begin job listing loop
 	for {
-		c.rateLimit(ctx)
+		if limitErr := c.rateLimit(ctx); limitErr != nil {
+			return jobs, limitErr
+		}
 
 		// Fetch jobs for the project
 		foundJobs, resp, err = c.Jobs.ListProjectJobs(ref.Project.Name, opt, options...)

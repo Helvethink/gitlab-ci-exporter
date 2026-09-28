@@ -18,8 +18,8 @@ import (
 
 type noopLimiterJobsTests struct{}
 
-func (noopLimiterJobsTests) Take(ctx context.Context) time.Duration {
-	return 0
+func (noopLimiterJobsTests) Take(ctx context.Context) (time.Duration, error) {
+	return 0, nil
 }
 
 func newTestGitLabClientForJobs(t *testing.T, handler http.HandlerFunc) *Client {
