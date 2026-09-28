@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -12,9 +13,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 
+	"github.com/helvethink/gitlab-ci-exporter/pkg/config"
 	"github.com/helvethink/gitlab-ci-exporter/pkg/controller"
 	monitoringServer "github.com/helvethink/gitlab-ci-exporter/pkg/monitor/server"
 )
+
+const httpShutdownTimeout = 5 * time.Second
 
 // Run launches the exporter.
 func Run(cliCtx *cli.Context) (int, error) {
@@ -49,52 +53,22 @@ func Run(cliCtx *cli.Context) (int, error) {
 	onShutdown := make(chan os.Signal, 1)
 	signal.Notify(onShutdown, syscall.SIGINT, syscall.SIGTERM, syscall.SIGABRT)
 
-	// Create an HTTP server multiplexer
-	mux := http.NewServeMux()
-	srv := &http.Server{
-		Addr:    cfg.Server.ListenAddress,
-		Handler: mux,
-	}
-
-	// Register health check endpoints
-	health := c.HealthCheckHandler(ctx)
-	mux.HandleFunc("/health/live", health.LiveEndpoint)
-	mux.HandleFunc("/health/ready", health.ReadyEndpoint)
-
-	// Register metrics endpoint if enabled in config
-	if cfg.Server.Metrics.Enabled {
-		mux.HandleFunc("/metrics", c.MetricsHandler)
-	}
-
-	// Register pprof debug endpoints if enabled in config
+	servers := []*http.Server{newPublicHTTPServer(ctx, &c)}
 	if cfg.Server.EnablePprof {
-		mux.HandleFunc("/debug/pprof/", pprof.Index)
-		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		servers = append(servers, newPprofHTTPServer(cfg.Server))
 	}
 
-	// Register webhook endpoint if enabled in config
-	if cfg.Server.Webhook.Enabled {
-		mux.HandleFunc("/webhook", c.WebhookHandler)
+	serverErrors := make(chan error, len(servers))
+	for _, server := range servers {
+		go serveHTTP(server, serverErrors)
 	}
-
-	// Start the HTTP server asynchronously
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			// Fatal log if server unexpectedly stops
-			log.WithContext(ctx).
-				WithError(err).
-				Fatal()
-		}
-	}()
 
 	// Log server startup details
 	log.WithFields(
 		log.Fields{
 			"listen-address":               cfg.Server.ListenAddress,
 			"pprof-endpoint-enabled":       cfg.Server.EnablePprof,
+			"pprof-listen-address":         cfg.Server.PprofListenAddress,
 			"metrics-endpoint-enabled":     cfg.Server.Metrics.Enabled,
 			"webhook-endpoint-enabled":     cfg.Server.Webhook.Enabled,
 			"openmetrics-encoding-enabled": cfg.Server.Metrics.EnableOpenmetricsEncoding,
@@ -102,24 +76,79 @@ func Run(cliCtx *cli.Context) (int, error) {
 		},
 	).Info("http server started")
 
-	// Wait here until a termination signal is received
-	<-onShutdown
-
-	// Received termination signal - begin graceful shutdown
-	log.Info("received signal, attempting to gracefully exit..")
+	var runErr error
+	select {
+	case <-onShutdown:
+		log.Info("received signal, attempting to gracefully exit..")
+	case runErr = <-serverErrors:
+		log.WithContext(ctx).WithError(runErr).Error("http server stopped unexpectedly")
+	}
+	signal.Stop(onShutdown)
 	ctxCancel()
 
-	// Create a context with timeout to force HTTP server shutdown after 5 seconds
-	httpServerContext, forceHTTPServerShutdown := context.WithTimeout(context.Background(), 5*time.Second)
+	httpServerContext, forceHTTPServerShutdown := context.WithTimeout(context.Background(), httpShutdownTimeout)
 	defer forceHTTPServerShutdown()
 
-	// Attempt graceful shutdown of HTTP server
-	if err := srv.Shutdown(httpServerContext); err != nil {
-		return 1, err
+	for _, server := range servers {
+		if err := server.Shutdown(httpServerContext); err != nil {
+			runErr = errors.Join(runErr, err)
+		}
+	}
+	if runErr != nil {
+		return 1, runErr
 	}
 
 	log.Info("stopped!")
 
 	// Return success exit code
 	return 0, nil
+}
+
+func newPublicHTTPServer(ctx context.Context, c *controller.Controller) *http.Server {
+	mux := http.NewServeMux()
+	health := c.HealthCheckHandler(ctx)
+	mux.Handle("GET /health/live", http.HandlerFunc(health.LiveEndpoint))
+	mux.Handle("GET /health/ready", http.HandlerFunc(health.ReadyEndpoint))
+
+	if c.Config.Server.Metrics.Enabled {
+		mux.Handle("GET /metrics", http.HandlerFunc(c.MetricsHandler))
+	}
+	if c.Config.Server.Webhook.Enabled {
+		mux.Handle("POST /webhook", c.NewWebhookHandler(ctx))
+	}
+
+	return newHTTPServer(c.Config.Server.ListenAddress, mux, c.Config.Server)
+}
+
+func newPprofHTTPServer(cfg config.Server) *http.Server {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /debug/pprof/", pprof.Index)
+	mux.HandleFunc("GET /debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("GET /debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("GET /debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("POST /debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("GET /debug/pprof/trace", pprof.Trace)
+
+	server := newHTTPServer(cfg.PprofListenAddress, mux, cfg)
+	// CPU profiles may legitimately run longer than the public server's write
+	// timeout. Access is bounded by the dedicated private listener instead.
+	server.WriteTimeout = 0
+	return server
+}
+
+func newHTTPServer(address string, handler http.Handler, cfg config.Server) *http.Server {
+	return &http.Server{
+		Addr:              address,
+		Handler:           handler,
+		ReadHeaderTimeout: cfg.ReadHeaderTimeout,
+		ReadTimeout:       cfg.ReadTimeout,
+		WriteTimeout:      cfg.WriteTimeout,
+		IdleTimeout:       cfg.IdleTimeout,
+	}
+}
+
+func serveHTTP(server *http.Server, errCh chan<- error) {
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		errCh <- err
+	}
 }

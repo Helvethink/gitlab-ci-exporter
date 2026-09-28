@@ -216,10 +216,17 @@ server:
   # [address:port] to make the process listen
   # upon (optional, default: :8080)
   listen_address: :8080
+
+  # Bound slow or stalled public HTTP clients.
+  read_header_timeout: 5s
+  read_timeout: 15s
+  write_timeout: 30s
+  idle_timeout: 60s
   
-  # Enable profiling pages
-  # at /debug/pprof (optional, default: false)
+  # Enable profiling pages on a dedicated private listener
+  # (optional, default: false). Do not expose this listener publicly.
   enable_pprof: false
+  pprof_listen_address: 127.0.0.1:6060
   
   metrics:
     # Enable /metrics endpoint (optional, default: true)
@@ -241,6 +248,13 @@ server:
     # the --webhook-secret-token flag or $GCPE_WEBHOOK_SECRET_TOKEN
     # environment variable)
     secret_token: 063f51ec-09a4-11eb-adc1-0242ac120002
+
+    # Reject payloads larger than 1 MiB (optional, default: 1048576).
+    maximum_body_bytes: 1048576
+
+    # Maximum number of webhook events processed concurrently.
+    # Excess requests receive HTTP 503 with Retry-After (optional, default: 8).
+    maximum_concurrent_processing: 8
 
 # Redis configuration, optional and solely useful for an HA setup.
 # By default the data is held in memory of the exporter
@@ -776,3 +790,5 @@ wildcards:
           # Fetch test cases reports in a separate metric (optional, default: false)
             enabled: false
 ```
+
+The public `/metrics` and `/health/*` endpoints do not provide application-level authentication. Bind the public listener to a trusted interface or protect it with firewall rules, a private network, or an authenticated reverse proxy. The pprof listener is separate and loopback-only by default; keep it private because profiling data can reveal sensitive process details.

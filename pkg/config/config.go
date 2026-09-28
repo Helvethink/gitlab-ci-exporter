@@ -57,10 +57,20 @@ type OpenTelemetry struct {
 type Server struct {
 	// ListenAddress specifies the address and port the server will bind to and listen on.
 	// Default is ":8080" (all interfaces on port 8080).
-	ListenAddress string        `default:":8080" yaml:"listen_address"`
-	EnablePprof   bool          `default:"false" yaml:"enable_pprof"` // EnablePprof enables profiling endpoints for debugging performance issues.
-	Metrics       ServerMetrics `yaml:"metrics"`                      // Metrics contains configuration related to exposing Prometheus metrics.
-	Webhook       ServerWebhook `yaml:"webhook"`                      // Webhook holds configuration for webhook-related HTTP endpoints.
+	ListenAddress string `default:":8080" yaml:"listen_address"`
+
+	// Timeouts bound the resources consumed by slow or stalled HTTP clients.
+	ReadHeaderTimeout time.Duration `default:"5s" validate:"gt=0" yaml:"read_header_timeout"`
+	ReadTimeout       time.Duration `default:"15s" validate:"gt=0" yaml:"read_timeout"`
+	WriteTimeout      time.Duration `default:"30s" validate:"gt=0" yaml:"write_timeout"`
+	IdleTimeout       time.Duration `default:"60s" validate:"gt=0" yaml:"idle_timeout"`
+
+	// EnablePprof enables profiling endpoints on the dedicated PprofListenAddress.
+	EnablePprof        bool   `default:"false" yaml:"enable_pprof"`
+	PprofListenAddress string `default:"127.0.0.1:6060" validate:"required_if=EnablePprof true" yaml:"pprof_listen_address"`
+
+	Metrics ServerMetrics `yaml:"metrics"` // Metrics contains configuration related to exposing Prometheus metrics.
+	Webhook ServerWebhook `yaml:"webhook"` // Webhook holds configuration for webhook-related HTTP endpoints.
 }
 
 // ServerMetrics holds configuration for the metrics HTTP endpoint.
@@ -79,6 +89,13 @@ type ServerWebhook struct {
 	// SecretToken is used to authenticate incoming webhook requests to ensure they come from a legitimate GitLab server.
 	// This token is required if the webhook endpoint is enabled.
 	SecretToken string `validate:"required_if=Enabled true" yaml:"secret_token"`
+
+	// MaximumBodyBytes limits the size of a webhook request body.
+	MaximumBodyBytes int64 `default:"1048576" validate:"gte=1" yaml:"maximum_body_bytes"`
+
+	// MaximumConcurrentProcessing limits webhook event processing. Requests received
+	// while all slots are occupied are rejected with HTTP 503 and Retry-After.
+	MaximumConcurrentProcessing int `default:"8" validate:"gte=1" yaml:"maximum_concurrent_processing"`
 }
 
 // Gitlab holds the configuration needed to connect to a GitLab instance.
