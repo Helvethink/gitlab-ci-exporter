@@ -1,0 +1,77 @@
+name: Report an issue
+description: Report a bug, request a feature, or suggest a documentation change.
+body:
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Issue type
+      options:
+        - Bug report
+        - Feature request
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: summary
+    attributes:
+      label: Summary
+      description: Briefly describe the issue or requested change.
+      placeholder: Exporter stops scheduling tasks after a replica restart
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Describe what happened or what you would like to change.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: For bugs, include the configuration and steps needed to reproduce the behavior.
+      placeholder: |
+        1. Configure ...
+        2. Start ...
+        3. Observe ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: For bugs, describe what you expected to happen.
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Exporter version and deployment
+      description: Include the version and deployment method if relevant.
+      placeholder: v1.2.3, Docker Compose
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Remove tokens, passwords, and other secrets before sharing logs.
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add links, screenshots, or other details that may help.
+    validations:
+      required: false
