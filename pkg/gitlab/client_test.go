@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -18,6 +19,34 @@ import (
 
 type mockLimiter struct {
 	called int32
+}
+
+func TestRateLimitSnapshotIsCoherentUnderConcurrentUpdates(t *testing.T) {
+	c := &Client{}
+	var wg sync.WaitGroup
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 1000 {
+				c.UpdateRateLimit(1, 10)
+				c.UpdateRateLimit(2, 20)
+			}
+		}()
+	}
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 1000 {
+				snapshot := c.RateLimit()
+				if snapshot != (RateLimitSnapshot{}) && snapshot != (RateLimitSnapshot{Remaining: 1, Limit: 10}) && snapshot != (RateLimitSnapshot{Remaining: 2, Limit: 20}) {
+					t.Errorf("incoherent rate-limit snapshot: %+v", snapshot)
+				}
+			}
+		}()
+	}
+	wg.Wait()
 }
 
 func (m *mockLimiter) Take(ctx context.Context) time.Duration {
@@ -156,20 +185,15 @@ func TestRequestsRemaining(t *testing.T) {
 	c := &Client{}
 	c.requestsRemaining(resp)
 
-	assert.Equal(t, 42, c.RequestsRemaining)
-	assert.Equal(t, 100, c.RequestsLimit)
+	assert.Equal(t, RateLimitSnapshot{Remaining: 42, Limit: 100}, c.RateLimit())
 }
 
 func TestRequestsRemaining_NilResponse(t *testing.T) {
-	c := &Client{
-		RequestsRemaining: 7,
-		RequestsLimit:     9,
-	}
+	c := &Client{rateLimitState: RateLimitSnapshot{Remaining: 7, Limit: 9}}
 
 	c.requestsRemaining(nil)
 
-	assert.Equal(t, 7, c.RequestsRemaining)
-	assert.Equal(t, 9, c.RequestsLimit)
+	assert.Equal(t, RateLimitSnapshot{Remaining: 7, Limit: 9}, c.RateLimit())
 }
 
 func TestRequestsRemaining_InvalidHeaders(t *testing.T) {
@@ -182,14 +206,9 @@ func TestRequestsRemaining_InvalidHeaders(t *testing.T) {
 		},
 	}
 
-	c := &Client{
-		RequestsRemaining: 11,
-		RequestsLimit:     22,
-	}
+	c := &Client{rateLimitState: RateLimitSnapshot{Remaining: 11, Limit: 22}}
 
 	c.requestsRemaining(resp)
 
-	// strconv.Atoi errors are ignored by production code, so values fall back to zero.
-	assert.Equal(t, 0, c.RequestsRemaining)
-	assert.Equal(t, 0, c.RequestsLimit)
+	assert.Equal(t, RateLimitSnapshot{Remaining: 11, Limit: 22}, c.RateLimit())
 }

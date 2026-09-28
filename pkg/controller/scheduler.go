@@ -21,10 +21,11 @@ import (
 
 // TaskController holds the components needed to manage task queues and scheduling.
 type TaskController struct {
-	Factory                  taskq.Factory                                      // Factory creates task queues and manages their lifecycle.
-	Queue                    taskq.Queue                                        // Queue is the actual task queue instance where tasks are enqueued and consumed.
-	TaskMap                  *taskq.TaskMap                                     // TaskMap holds the mapping of task types to their handlers for processing.
-	TaskSchedulingMonitoring map[schemas.TaskType]*monitor.TaskSchedulingStatus // TaskSchedulingMonitoring holds monitoring status per task type to track scheduling health.
+	Factory                  taskq.Factory
+	Queue                    taskq.Queue
+	TaskMap                  *taskq.TaskMap
+	TaskSchedulingMonitoring *monitor.SchedulingStatus
+	admission                *taskAdmission
 }
 
 // NewTaskController initializes and returns a new TaskController.
@@ -75,7 +76,8 @@ func NewTaskController(ctx context.Context, r *redis.Client, maximumJobsQueueSiz
 	}
 
 	// Initialize the monitoring map to track scheduling status per task type
-	t.TaskSchedulingMonitoring = make(map[schemas.TaskType]*monitor.TaskSchedulingStatus)
+	t.TaskSchedulingMonitoring = &monitor.SchedulingStatus{}
+	t.admission = newTaskAdmission(maximumJobsQueueSize)
 
 	return
 }
@@ -584,10 +586,10 @@ func (c *Controller) ScheduleRedisSetKeepalive(ctx context.Context) {
 // It performs the following steps:
 //  1. Starts an OpenTelemetry span for tracing the scheduling operation, annotating it with the task type and unique ID.
 //  2. Retrieves the task constructor from the TaskMap and creates a new job instance with the provided arguments.
-//  3. Checks the current length of the task queue to avoid overfilling it beyond its buffer size. If the queue is full, the task is not scheduled.
+//  3. Acquires a capacity slot atomically; jobs over capacity are skipped.
 //  4. Attempts to declare the task in the persistent store queue to ensure idempotency and track the task state.
 //     If the task is already queued, it skips scheduling to avoid duplicates.
-//  5. If the task is successfully registered and the queue has capacity, it asynchronously adds the job to the task queue.
+//  5. Publishes the job synchronously, rolling back its reservation on failure.
 //  6. Logs warnings or debug messages at each failure or skip point to aid in diagnostics.
 //
 // This function helps ensure tasks are only scheduled when the queue has capacity and the task is not already enqueued,
@@ -605,26 +607,26 @@ func (c *Controller) ScheduleTask(ctx context.Context, tt schemas.TaskType, uniq
 	}
 	task := c.TaskController.TaskMap.Get(string(tt))
 	msg := task.NewJob(args...)
-
-	qlen, err := c.TaskController.Queue.Len(ctx)
-	if err != nil {
+	admission := c.TaskController.admission
+	if admission == nil {
+		log.WithContext(ctx).WithFields(logFields).Error("task admission is not initialized")
+		return
+	}
+	if !admission.acquire() {
 		log.WithContext(ctx).
 			WithFields(logFields).
-			Warn("unable to read task queue length, skipping scheduling of task..")
+			Warn("queue capacity exhausted, skipping scheduling of task")
 
 		return
 	}
-
-	if qlen >= c.TaskController.Queue.Options().BufferSize {
-		log.WithContext(ctx).
-			WithFields(logFields).
-			Warn("queue buffer size exhausted, skipping scheduling of task..")
-
+	if err := ctx.Err(); err != nil {
+		admission.discard()
 		return
 	}
 
 	queued, err := c.Store.QueueTask(ctx, tt, uniqueID, c.UUID.String())
 	if err != nil {
+		admission.discard()
 		log.WithContext(ctx).
 			WithFields(logFields).
 			Warn("unable to declare the queueing, skipping scheduling of task..")
@@ -633,19 +635,31 @@ func (c *Controller) ScheduleTask(ctx context.Context, tt schemas.TaskType, uniq
 	}
 
 	if !queued {
+		admission.discard()
 		log.WithFields(logFields).
 			Debug("task already queued, skipping scheduling of task..")
 
 		return
 	}
+	key := taskKey{typeName: tt, id: uniqueID}
+	admission.track(key)
+	if err := ctx.Err(); err != nil {
+		c.rollbackTaskReservation(ctx, tt, uniqueID)
+		return
+	}
+	if err := c.TaskController.Queue.AddJob(ctx, msg); err != nil {
+		log.WithContext(ctx).WithFields(logFields).WithError(err).Warn("scheduling task")
+		c.rollbackTaskReservation(ctx, tt, uniqueID)
+	}
+}
 
-	go func(job *taskq.Job) {
-		if err := c.TaskController.Queue.AddJob(ctx, job); err != nil {
-			log.WithContext(ctx).
-				WithError(err).
-				Warn("scheduling task")
-		}
-	}(msg)
+func (c *Controller) rollbackTaskReservation(ctx context.Context, tt schemas.TaskType, uniqueID string) {
+	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if err := c.Store.CancelTask(rollbackCtx, tt, uniqueID, c.UUID.String()); err != nil {
+		log.WithContext(ctx).WithError(err).Warn("rolling back task reservation")
+	}
+	c.TaskController.admission.release(taskKey{typeName: tt, id: uniqueID})
 }
 
 // ScheduleTaskWithTicker repeatedly schedules a task of the specified type `tt` at fixed intervals defined by `intervalSeconds`.
@@ -703,19 +717,11 @@ func (c *Controller) ScheduleTaskWithTicker(ctx context.Context, tt schemas.Task
 // monitorNextTaskScheduling updates the monitoring status of the next expected execution time for the given task type `tt`.
 // If no monitoring record exists, it creates one and sets the Next scheduled time to now + duration.
 func (tc *TaskController) monitorNextTaskScheduling(tt schemas.TaskType, duration int) {
-	if _, ok := tc.TaskSchedulingMonitoring[tt]; !ok {
-		tc.TaskSchedulingMonitoring[tt] = &monitor.TaskSchedulingStatus{}
-	}
-
-	tc.TaskSchedulingMonitoring[tt].Next = time.Now().Add(time.Duration(duration) * time.Second)
+	tc.TaskSchedulingMonitoring.SetNext(tt, time.Now().Add(time.Duration(duration)*time.Second))
 }
 
 // monitorLastTaskScheduling updates the monitoring status to record the last execution time of the given task type `tt`.
 // If no monitoring record exists, it creates one and sets the Last scheduled time to now.
 func (tc *TaskController) monitorLastTaskScheduling(tt schemas.TaskType) {
-	if _, ok := tc.TaskSchedulingMonitoring[tt]; !ok {
-		tc.TaskSchedulingMonitoring[tt] = &monitor.TaskSchedulingStatus{}
-	}
-
-	tc.TaskSchedulingMonitoring[tt].Last = time.Now()
+	tc.TaskSchedulingMonitoring.SetLast(tt, time.Now())
 }

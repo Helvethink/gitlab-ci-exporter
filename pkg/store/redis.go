@@ -796,6 +796,28 @@ func (r *Redis) DequeueTask(ctx context.Context, tt schemas.TaskType, taskUUID s
 	return
 }
 
+// CancelTask removes only a reservation still owned by this process.
+func (r *Redis) CancelTask(ctx context.Context, tt schemas.TaskType, taskUUID, processUUID string) error {
+	key := getRedisQueueKey(tt, taskUUID)
+	return r.Watch(ctx, func(tx *redis.Tx) error {
+		owner, err := tx.Get(ctx, key).Result()
+		if err == redis.Nil {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if owner != processUUID {
+			return nil
+		}
+		_, err = tx.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
+			pipe.Del(ctx, key)
+			return nil
+		})
+		return err
+	}, key)
+}
+
 // CurrentlyQueuedTasksCount returns the count of currently queued tasks.
 func (r *Redis) CurrentlyQueuedTasksCount(ctx context.Context) (count uint64, err error) {
 	// Scan for all task keys and count them

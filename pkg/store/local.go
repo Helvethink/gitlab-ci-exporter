@@ -2,10 +2,42 @@ package store
 
 import (
 	"context"
+	"maps"
+	"slices"
 	"sync"
 
 	"github.com/helvethink/gitlab-ci-exporter/pkg/schemas"
 )
+
+func cloneRef(ref schemas.Ref) schemas.Ref {
+	ref.LatestJobs = maps.Clone(ref.LatestJobs)
+	ref.LatestPipeline = clonePipeline(ref.LatestPipeline)
+	return ref
+}
+
+func cloneMetric(metric schemas.Metric) schemas.Metric {
+	metric.Labels = maps.Clone(metric.Labels)
+	return metric
+}
+
+func cloneRunner(runner schemas.Runner) schemas.Runner {
+	runner.TagList = slices.Clone(runner.TagList)
+	runner.Projects = slices.Clone(runner.Projects)
+	runner.Groups = slices.Clone(runner.Groups)
+	if runner.ContactedAt != nil {
+		contactedAt := *runner.ContactedAt
+		runner.ContactedAt = &contactedAt
+	}
+	return runner
+}
+
+func clonePipeline(pipeline schemas.Pipeline) schemas.Pipeline {
+	pipeline.TestReport.TestSuites = slices.Clone(pipeline.TestReport.TestSuites)
+	for i := range pipeline.TestReport.TestSuites {
+		pipeline.TestReport.TestSuites[i].TestCases = slices.Clone(pipeline.TestReport.TestSuites[i].TestCases)
+	}
+	return pipeline
+}
 
 // Local represents an in-memory storage implementation for managing projects, environments, references, and metrics.
 type Local struct {
@@ -194,7 +226,7 @@ func (l *Local) SetRunner(_ context.Context, runner schemas.Runner) error {
 	l.runnersMutex.Lock()         // Lock the mutex for exclusive access
 	defer l.runnersMutex.Unlock() // Ensure the mutex is unlocked when the function exits
 
-	l.runners[runner.Key()] = runner // Store the runner
+	l.runners[runner.Key()] = cloneRunner(runner)
 
 	return nil
 }
@@ -212,9 +244,9 @@ func (l *Local) GetRunner(ctx context.Context, runner *schemas.Runner) error {
 	exists, _ := l.RunnerExists(ctx, runner.Key())
 
 	if exists {
-		l.runnersMutex.RLock()            // Lock the mutex for read-only access
-		*runner = l.runners[runner.Key()] // Retrieve the runner
-		l.runnersMutex.RUnlock()          // Unlock the mutex
+		l.runnersMutex.RLock() // Lock the mutex for read-only access
+		*runner = cloneRunner(l.runners[runner.Key()])
+		l.runnersMutex.RUnlock() // Unlock the mutex
 	}
 
 	return nil
@@ -236,7 +268,7 @@ func (l *Local) Runners(_ context.Context) (runners schemas.Runners, err error) 
 	defer l.runnersMutex.RUnlock() // Ensure the mutex is unlocked when the function exits
 
 	for k, v := range l.runners {
-		runners[k] = v // Copy all runners to the result
+		runners[k] = cloneRunner(v)
 	}
 
 	return
@@ -256,7 +288,7 @@ func (l *Local) SetRef(_ context.Context, ref schemas.Ref) error {
 	l.refsMutex.Lock()         // Lock the mutex for exclusive access
 	defer l.refsMutex.Unlock() // Ensure the mutex is unlocked when the function exits
 
-	l.refs[ref.Key()] = ref // Store the reference
+	l.refs[ref.Key()] = cloneRef(ref)
 
 	return nil
 }
@@ -276,9 +308,9 @@ func (l *Local) GetRef(ctx context.Context, ref *schemas.Ref) error {
 	exists, _ := l.RefExists(ctx, ref.Key())
 
 	if exists {
-		l.refsMutex.RLock()      // Lock the mutex for read-only access
-		*ref = l.refs[ref.Key()] // Retrieve the reference
-		l.refsMutex.RUnlock()    // Unlock the mutex
+		l.refsMutex.RLock() // Lock the mutex for read-only access
+		*ref = cloneRef(l.refs[ref.Key()])
+		l.refsMutex.RUnlock() // Unlock the mutex
 	}
 
 	return nil
@@ -302,7 +334,7 @@ func (l *Local) Refs(_ context.Context) (refs schemas.Refs, err error) {
 	defer l.refsMutex.RUnlock() // Ensure the mutex is unlocked when the function exits
 
 	for k, v := range l.refs {
-		refs[k] = v // Copy all references to the result
+		refs[k] = cloneRef(v)
 	}
 
 	return
@@ -321,7 +353,7 @@ func (l *Local) SetMetric(_ context.Context, m schemas.Metric) error {
 	l.metricsMutex.Lock()         // Lock the mutex for exclusive access
 	defer l.metricsMutex.Unlock() // Ensure the mutex is unlocked when the function exits
 
-	l.metrics[m.Key()] = m // Store the metric
+	l.metrics[m.Key()] = cloneMetric(m)
 
 	return nil
 }
@@ -341,8 +373,8 @@ func (l *Local) GetMetric(ctx context.Context, m *schemas.Metric) error {
 	exists, _ := l.MetricExists(ctx, m.Key())
 
 	if exists {
-		l.metricsMutex.RLock()   // Lock the mutex for read-only access
-		*m = l.metrics[m.Key()]  // Retrieve the metric
+		l.metricsMutex.RLock() // Lock the mutex for read-only access
+		*m = cloneMetric(l.metrics[m.Key()])
 		l.metricsMutex.RUnlock() // Unlock the mutex
 	}
 
@@ -367,7 +399,7 @@ func (l *Local) Metrics(_ context.Context) (metrics schemas.Metrics, err error) 
 	defer l.metricsMutex.RUnlock() // Ensure the mutex is unlocked when the function exits
 
 	for k, v := range l.metrics {
-		metrics[k] = v // Copy all metrics to the result
+		metrics[k] = cloneMetric(v)
 	}
 
 	return
@@ -386,7 +418,7 @@ func (l *Local) SetPipeline(_ context.Context, pipeline schemas.Pipeline) error 
 	l.pipelinesMutex.Lock()
 	defer l.pipelinesMutex.Unlock()
 
-	l.pipelines[pipeline.Key()] = pipeline
+	l.pipelines[pipeline.Key()] = clonePipeline(pipeline)
 
 	return nil
 }
@@ -401,7 +433,7 @@ func (l *Local) GetPipeline(ctx context.Context, pipeline *schemas.Pipeline) err
 		// Lock the mutex for reading
 		l.pipelinesMutex.RLock()
 		// Copy the pipeline data from the local storage to the provided pipeline pointer
-		*pipeline = l.pipelines[pipeline.Key()]
+		*pipeline = clonePipeline(l.pipelines[pipeline.Key()])
 		// Unlock the mutex
 		l.pipelinesMutex.RUnlock()
 	}
@@ -469,55 +501,40 @@ func (l *Local) PipelineVariablesExists(_ context.Context, pipeline schemas.Pipe
 	return ok, nil // Return true if the variables exist, false otherwise, and nil error
 }
 
-// isTaskAlreadyQueued assesses if a task is already queued or not.
-func (l *Local) isTaskAlreadyQueued(tt schemas.TaskType, uniqueID string) bool {
-	l.tasksMutex.Lock()         // Lock the mutex for exclusive access
-	defer l.tasksMutex.Unlock() // Ensure the mutex is unlocked when the function exits
-
-	if l.tasks == nil {
-		l.tasks = make(map[schemas.TaskType]map[string]interface{}) // Initialize the tasks map if it's nil
-	}
-
-	taskTypeQueue, ok := l.tasks[tt]
-	if !ok {
-		l.tasks[tt] = make(map[string]interface{}) // Initialize the task type queue if it doesn't exist
-
-		return false
-	}
-
-	if _, alreadyQueued := taskTypeQueue[uniqueID]; alreadyQueued {
-		return true // Return true if the task is already queued
-	}
-
-	return false
-}
-
 // QueueTask registers that we are queueing the task.
 // It returns true if it managed to schedule it, false if it was already scheduled.
 func (l *Local) QueueTask(_ context.Context, tt schemas.TaskType, uniqueID, _ string) (bool, error) {
-	if !l.isTaskAlreadyQueued(tt, uniqueID) {
-		l.tasksMutex.Lock()         // Lock the mutex for exclusive access
-		defer l.tasksMutex.Unlock() // Ensure the mutex is unlocked when the function exits
-
-		l.tasks[tt][uniqueID] = nil // Queue the task
-
-		return true, nil
+	l.tasksMutex.Lock()
+	defer l.tasksMutex.Unlock()
+	if l.tasks == nil {
+		l.tasks = make(schemas.Tasks)
 	}
-
-	return false, nil
+	if l.tasks[tt] == nil {
+		l.tasks[tt] = make(map[string]interface{})
+	}
+	if _, exists := l.tasks[tt][uniqueID]; exists {
+		return false, nil
+	}
+	l.tasks[tt][uniqueID] = nil
+	return true, nil
 }
 
 // DequeueTask removes the task from the tracker.
 func (l *Local) DequeueTask(_ context.Context, tt schemas.TaskType, uniqueID string) error {
-	if l.isTaskAlreadyQueued(tt, uniqueID) {
-		l.tasksMutex.Lock()         // Lock the mutex for exclusive access
-		defer l.tasksMutex.Unlock() // Ensure the mutex is unlocked when the function exits
-
-		delete(l.tasks[tt], uniqueID) // Remove the task from the queue
-
-		l.executedTasksCount++ // Increment the count of executed tasks
+	l.tasksMutex.Lock()
+	defer l.tasksMutex.Unlock()
+	if _, exists := l.tasks[tt][uniqueID]; exists {
+		delete(l.tasks[tt], uniqueID)
+		l.executedTasksCount++
 	}
+	return nil
+}
 
+// CancelTask removes a reservation without recording an execution.
+func (l *Local) CancelTask(_ context.Context, tt schemas.TaskType, uniqueID, _ string) error {
+	l.tasksMutex.Lock()
+	defer l.tasksMutex.Unlock()
+	delete(l.tasks[tt], uniqueID)
 	return nil
 }
 
