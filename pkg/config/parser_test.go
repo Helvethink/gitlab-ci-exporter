@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -31,6 +32,11 @@ opentelemetry:
 server:
   enable_pprof: true
   listen_address: :1025
+  pprof_listen_address: 127.0.0.1:6061
+  read_header_timeout: 2s
+  read_timeout: 7s
+  write_timeout: 12s
+  idle_timeout: 45s
 
   metrics:
     enabled: false
@@ -39,6 +45,8 @@ server:
   webhook:
     enabled: true
     secret_token: secret
+    maximum_body_bytes: 2048
+    maximum_concurrent_processing: 3
 
 gitlab:
   url: https://gitlab.example.com
@@ -173,10 +181,17 @@ wildcards:
 
 	xcfg.Server.EnablePprof = true
 	xcfg.Server.ListenAddress = ":1025"
+	xcfg.Server.PprofListenAddress = "127.0.0.1:6061"
+	xcfg.Server.ReadHeaderTimeout = 2 * time.Second
+	xcfg.Server.ReadTimeout = 7 * time.Second
+	xcfg.Server.WriteTimeout = 12 * time.Second
+	xcfg.Server.IdleTimeout = 45 * time.Second
 	xcfg.Server.Metrics.Enabled = false
 	xcfg.Server.Metrics.EnableOpenmetricsEncoding = false
 	xcfg.Server.Webhook.Enabled = true
 	xcfg.Server.Webhook.SecretToken = "secret"
+	xcfg.Server.Webhook.MaximumBodyBytes = 2048
+	xcfg.Server.Webhook.MaximumConcurrentProcessing = 3
 
 	xcfg.Gitlab.URL = "https://gitlab.example.com"
 	xcfg.Gitlab.Token = "xrN14n9-ywvAFxdwadadadadwadadw"

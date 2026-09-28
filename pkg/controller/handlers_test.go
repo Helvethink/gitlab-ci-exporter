@@ -121,7 +121,7 @@ func TestWebhookHandlerRejectsInvalidToken(t *testing.T) {
 	req.Header.Set("X-Gitlab-Token", "wrong-secret")
 	rr := httptest.NewRecorder()
 
-	c.WebhookHandler(rr, req)
+	c.NewWebhookHandler(context.Background()).ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 	assert.JSONEq(t, `{"error":"invalid token"}`, rr.Body.String())
@@ -142,7 +142,7 @@ func TestWebhookHandlerReturnsBadRequestOnEmptyBody(t *testing.T) {
 	req.Header.Set("X-Gitlab-Token", "expected-secret")
 	rr := httptest.NewRecorder()
 
-	c.WebhookHandler(rr, req)
+	c.NewWebhookHandler(context.Background()).ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
@@ -163,7 +163,83 @@ func TestWebhookHandlerReturnsBadRequestOnInvalidPayload(t *testing.T) {
 	req.Header.Set("X-Gitlab-Event", "Pipeline Hook")
 	rr := httptest.NewRecorder()
 
-	c.WebhookHandler(rr, req)
+	c.NewWebhookHandler(context.Background()).ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+func TestWebhookHandlerRejectsUnexpectedMethod(t *testing.T) {
+	c := &Controller{}
+	req := httptest.NewRequest(http.MethodGet, "/webhook", nil)
+	rr := httptest.NewRecorder()
+
+	c.NewWebhookHandler(context.Background()).ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusMethodNotAllowed, rr.Code)
+	assert.Equal(t, http.MethodPost, rr.Header().Get("Allow"))
+}
+
+func TestWebhookHandlerRejectsOversizedBody(t *testing.T) {
+	c := &Controller{
+		Config: config.Config{
+			Server: config.Server{
+				Webhook: config.ServerWebhook{
+					SecretToken:      "expected-secret",
+					MaximumBodyBytes: 4,
+				},
+			},
+		},
+	}
+	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(`{"too":"large"}`))
+	req.Header.Set("X-Gitlab-Token", "expected-secret")
+	rr := httptest.NewRecorder()
+
+	c.NewWebhookHandler(context.Background()).ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusRequestEntityTooLarge, rr.Code)
+}
+
+func TestWebhookHandlerAppliesBackpressureAtCapacity(t *testing.T) {
+	c := &Controller{
+		Config: config.Config{
+			Server: config.Server{
+				Webhook: config.ServerWebhook{
+					SecretToken:                 "expected-secret",
+					MaximumBodyBytes:            1024,
+					MaximumConcurrentProcessing: 1,
+				},
+			},
+		},
+	}
+	h := c.NewWebhookHandler(context.Background()).(*webhookHandler)
+	processingStarted := make(chan struct{})
+	releaseProcessing := make(chan struct{})
+	processingFinished := make(chan struct{})
+	h.process = func(context.Context, any) {
+		close(processingStarted)
+		<-releaseProcessing
+		close(processingFinished)
+	}
+
+	firstRequest := newPipelineWebhookRequest()
+	firstResponse := httptest.NewRecorder()
+	h.ServeHTTP(firstResponse, firstRequest)
+	require.Equal(t, http.StatusOK, firstResponse.Code)
+	<-processingStarted
+
+	secondRequest := newPipelineWebhookRequest()
+	secondResponse := httptest.NewRecorder()
+	h.ServeHTTP(secondResponse, secondRequest)
+
+	assert.Equal(t, http.StatusServiceUnavailable, secondResponse.Code)
+	assert.Equal(t, "1", secondResponse.Header().Get("Retry-After"))
+	close(releaseProcessing)
+	<-processingFinished
+}
+
+func newPipelineWebhookRequest() *http.Request {
+	req := httptest.NewRequest(http.MethodPost, "/webhook", strings.NewReader(`{}`))
+	req.Header.Set("X-Gitlab-Token", "expected-secret")
+	req.Header.Set("X-Gitlab-Event", "Pipeline Hook")
+	return req
 }

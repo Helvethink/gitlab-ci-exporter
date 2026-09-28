@@ -17,7 +17,14 @@ func TestNew(t *testing.T) {
 	c.OpenTelemetry.GRPCEndpoint = ""
 
 	c.Server.ListenAddress = ":8080"
+	c.Server.ReadHeaderTimeout = 5 * time.Second
+	c.Server.ReadTimeout = 15 * time.Second
+	c.Server.WriteTimeout = 30 * time.Second
+	c.Server.IdleTimeout = 60 * time.Second
+	c.Server.PprofListenAddress = "127.0.0.1:6060"
 	c.Server.Metrics.Enabled = true
+	c.Server.Webhook.MaximumBodyBytes = 1 << 20
+	c.Server.Webhook.MaximumConcurrentProcessing = 8
 
 	c.Gitlab.URL = "https://gitlab.com"
 	c.Gitlab.HealthURL = "https://gitlab.com/explore"

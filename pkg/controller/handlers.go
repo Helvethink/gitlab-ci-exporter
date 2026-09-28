@@ -2,7 +2,8 @@ package controller
 
 import (
 	"context"
-	"fmt"
+	"crypto/subtle"
+	"errors"
 	"io"
 	"net/http"
 	"reflect"
@@ -12,8 +13,22 @@ import (
 	log "github.com/sirupsen/logrus"
 	"gitlab.com/gitlab-org/api/client-go"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 )
+
+const (
+	defaultWebhookMaximumBodyBytes            = 1 << 20
+	defaultWebhookMaximumConcurrentProcessing = 8
+)
+
+type webhookHandler struct {
+	applicationContext context.Context
+	controller         *Controller
+	maximumBodyBytes   int64
+	processingSlots    chan struct{}
+	process            func(context.Context, any)
+}
 
 // HealthCheckHandler creates and returns a health check handler for the controller.
 func (c *Controller) HealthCheckHandler(ctx context.Context) (h healthcheck.Handler) {
@@ -76,15 +91,40 @@ func (c *Controller) MetricsHandler(w http.ResponseWriter, r *http.Request) {
 	).ServeHTTP(w, r)
 }
 
-// WebhookHandler handles incoming GitLab webhook HTTP requests.
-func (c *Controller) WebhookHandler(w http.ResponseWriter, r *http.Request) {
-	// Get the tracing span from the request context for observability
-	span := trace.SpanFromContext(r.Context())
-	defer span.End()
+// NewWebhookHandler creates a webhook handler with bounded request bodies and
+// event-processing concurrency. Accepted events are processed asynchronously
+// using the application context, so request cancellation does not abandon them.
+func (c *Controller) NewWebhookHandler(ctx context.Context) http.Handler {
+	maximumBodyBytes := c.Config.Server.Webhook.MaximumBodyBytes
+	if maximumBodyBytes <= 0 {
+		maximumBodyBytes = defaultWebhookMaximumBodyBytes
+	}
 
-	// Create a new background context with the span,
-	// instead of using the request context which may have a short cancellation TTL
-	ctx := trace.ContextWithSpan(context.Background(), span)
+	maximumConcurrentProcessing := c.Config.Server.Webhook.MaximumConcurrentProcessing
+	if maximumConcurrentProcessing <= 0 {
+		maximumConcurrentProcessing = defaultWebhookMaximumConcurrentProcessing
+	}
+
+	h := &webhookHandler{
+		applicationContext: ctx,
+		controller:         c,
+		maximumBodyBytes:   maximumBodyBytes,
+		processingSlots:    make(chan struct{}, maximumConcurrentProcessing),
+	}
+	h.process = h.processWebhookEvent
+
+	return h
+}
+
+// ServeHTTP handles incoming GitLab webhook HTTP requests.
+func (h *webhookHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	ctx := r.Context()
 
 	// Prepare a logger with context and fields including the remote IP and user agent
 	logger := log.
@@ -97,35 +137,35 @@ func (c *Controller) WebhookHandler(w http.ResponseWriter, r *http.Request) {
 	logger.Debug("webhook request received")
 
 	// Validate the webhook secret token from the request header
-	if r.Header.Get("X-Gitlab-Token") != c.Config.Server.Webhook.SecretToken {
+	providedToken := []byte(r.Header.Get("X-Gitlab-Token"))
+	expectedToken := []byte(h.controller.Config.Server.Webhook.SecretToken)
+	if subtle.ConstantTimeCompare(providedToken, expectedToken) != 1 {
 		logger.Debug("invalid token provided for webhook request")
-		w.WriteHeader(http.StatusForbidden)
-		n, err := fmt.Fprint(w, "{\"error\": \"invalid token\"}")
-		if err != nil {
-			fmt.Print(n, " bytes written. \n")
-			log.WithContext(ctx).
-				WithError(err).
-				Warn()
-		}
+		http.Error(w, "{\"error\":\"invalid token\"}", http.StatusForbidden)
 		return
 	}
 
-	// Check if the request body is empty (no content)
-	if r.Body == http.NoBody {
-		logger.
-			WithError(fmt.Errorf("empty request body")).
-			Warn("unable to read body of a received webhook")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	// Read the entire request body payload
+	// Limit the body before reading it so an authenticated client cannot cause
+	// unbounded memory consumption.
+	r.Body = http.MaxBytesReader(w, r.Body, h.maximumBodyBytes)
 	payload, err := io.ReadAll(r.Body)
 	if err != nil {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			logger.WithError(err).Warn("webhook request body exceeds configured limit")
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+
 		logger.
 			WithError(err).
 			Warn("unable to read body of a received webhook")
-		w.WriteHeader(http.StatusBadRequest)
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if len(payload) == 0 {
+		logger.Warn("unable to read empty body of a received webhook")
+		http.Error(w, "empty request body", http.StatusBadRequest)
 		return
 	}
 
@@ -135,29 +175,83 @@ func (c *Controller) WebhookHandler(w http.ResponseWriter, r *http.Request) {
 		logger.
 			WithError(err).
 			Warn("unable to parse webhook payload")
-		w.WriteHeader(http.StatusBadRequest)
+		http.Error(w, "invalid webhook payload", http.StatusBadRequest)
+		return
+	}
+	if !isSupportedWebhookEvent(event) {
+		eventType := "<nil>"
+		if typ := reflect.TypeOf(event); typ != nil {
+			eventType = typ.String()
+		}
+		logger.
+			WithField("event-type", eventType).
+			Warn("received unsupported webhook event type")
+		http.Error(w, "unsupported webhook event type", http.StatusUnprocessableEntity)
 		return
 	}
 
-	// Handle different types of GitLab webhook events asynchronously in separate goroutines
+	if !h.submit(event) {
+		logger.Warn("webhook processing capacity exhausted")
+		w.Header().Set("Retry-After", "1")
+		http.Error(w, "webhook processing capacity exhausted", http.StatusServiceUnavailable)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func isSupportedWebhookEvent(event any) bool {
+	switch event.(type) {
+	case *gitlab.PipelineEvent,
+		*gitlab.JobEvent,
+		*gitlab.DeploymentEvent,
+		*gitlab.PushEvent,
+		*gitlab.TagEvent,
+		*gitlab.MergeEvent:
+		return true
+	default:
+		return false
+	}
+}
+
+func (h *webhookHandler) submit(event any) bool {
+	select {
+	case h.processingSlots <- struct{}{}:
+		go func() {
+			defer func() { <-h.processingSlots }()
+
+			ctx, span := otel.Tracer(tracerName).Start(h.applicationContext, "controller:processWebhookEvent")
+			defer span.End()
+
+			h.process(ctx, event)
+		}()
+		return true
+	default:
+		return false
+	}
+}
+
+func (h *webhookHandler) processWebhookEvent(ctx context.Context, event any) {
 	switch event := event.(type) {
 	case *gitlab.PipelineEvent:
-		go c.processPipelineEvent(ctx, *event)
+		h.controller.processPipelineEvent(ctx, *event)
 	case *gitlab.JobEvent:
-		go c.processJobEvent(ctx, *event)
+		h.controller.processJobEvent(ctx, *event)
 	case *gitlab.DeploymentEvent:
-		go c.processDeploymentEvent(ctx, *event)
+		h.controller.processDeploymentEvent(ctx, *event)
 	case *gitlab.PushEvent:
-		go c.processPushEvent(ctx, *event)
+		h.controller.processPushEvent(ctx, *event)
 	case *gitlab.TagEvent:
-		go c.processTagEvent(ctx, *event)
+		h.controller.processTagEvent(ctx, *event)
 	case *gitlab.MergeEvent:
-		go c.processMergeEvent(ctx, *event)
+		h.controller.processMergeEvent(ctx, *event)
 	default:
-		// Log and respond with an error for unsupported event types
-		logger.
-			WithField("event-type", reflect.TypeOf(event).String()).
+		eventType := "<nil>"
+		if typ := reflect.TypeOf(event); typ != nil {
+			eventType = typ.String()
+		}
+		log.WithContext(ctx).
+			WithField("event-type", eventType).
 			Warn("received unsupported webhook event type")
-		w.WriteHeader(http.StatusUnprocessableEntity)
 	}
 }
