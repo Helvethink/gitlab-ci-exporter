@@ -38,7 +38,7 @@ type TaskController struct {
 // Redis consumers are started after handlers and the store are initialized.
 func NewTaskController(ctx context.Context, r *redis.Client, maximumJobsQueueSize int) (t TaskController) {
 	// Start an OpenTelemetry tracing span for monitoring initialization time
-	ctx, span := otel.Tracer(tracerName).Start(ctx, "controller:NewTaskController")
+	_, span := otel.Tracer(tracerName).Start(ctx, "controller:NewTaskController")
 	defer span.End()
 
 	// Initialize the TaskMap that will register task handlers
