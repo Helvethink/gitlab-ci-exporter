@@ -52,6 +52,31 @@ func TestControllerCloseWaitsForWebhookWork(t *testing.T) {
 	require.NoError(t, c.Close(context.Background()))
 }
 
+func TestControllerCloseCancelsWebhookWorkWithoutApplicationCancel(t *testing.T) {
+	lifecycleCtx, cancel := context.WithCancel(context.Background())
+	c := &Controller{background: &backgroundTasks{ctx: lifecycleCtx, cancel: cancel}}
+	// The handler context outlives Close on purpose: Close alone must stop the worker.
+	h := c.NewWebhookHandler(context.Background()).(*webhookHandler)
+	started := make(chan struct{})
+	cancelled := make(chan struct{})
+	h.process = func(ctx context.Context, _ any) {
+		close(started)
+		<-ctx.Done()
+		close(cancelled)
+	}
+	require.True(t, h.submit(struct{}{}))
+	<-started
+
+	shutdownCtx, stop := context.WithTimeout(context.Background(), 2*time.Second)
+	defer stop()
+	require.NoError(t, c.Close(shutdownCtx))
+	select {
+	case <-cancelled:
+	default:
+		t.Fatal("webhook worker was not cancelled by Close")
+	}
+}
+
 func TestControllerCloseWaitsForActiveTask(t *testing.T) {
 	appCtx, cancel := context.WithCancel(context.Background())
 	c := &Controller{

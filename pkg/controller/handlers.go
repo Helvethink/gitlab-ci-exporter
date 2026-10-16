@@ -122,7 +122,7 @@ func (c *Controller) NewWebhookHandler(ctx context.Context) http.Handler {
 	}
 
 	h := &webhookHandler{
-		applicationContext: ctx,
+		applicationContext: c.bindLifecycle(ctx),
 		controller:         c,
 		maximumBodyBytes:   maximumBodyBytes,
 		processingSlots:    make(chan struct{}, maximumConcurrentProcessing),

@@ -13,6 +13,7 @@ import (
 type backgroundTasks struct {
 	mu     sync.Mutex
 	wg     sync.WaitGroup
+	ctx    context.Context // lifecycle context cancelled by stop; nil when not owned
 	cancel context.CancelFunc
 	closed bool
 }
@@ -61,6 +62,18 @@ func (c *Controller) startBackground(fn func()) bool {
 		return true
 	}
 	return c.background.start(fn)
+}
+
+// bindLifecycle returns a context cancelled when either ctx or the controller's
+// lifecycle context is done, so work started from externally supplied contexts
+// still stops when Close is called.
+func (c *Controller) bindLifecycle(ctx context.Context) context.Context {
+	if c.background == nil || c.background.ctx == nil {
+		return ctx
+	}
+	bound, cancel := context.WithCancel(ctx)
+	context.AfterFunc(c.background.ctx, cancel)
+	return bound
 }
 
 // Close stops background work and closes the task queue, Redis client, and tracer.

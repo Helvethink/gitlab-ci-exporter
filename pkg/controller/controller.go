@@ -66,7 +66,7 @@ type Controller struct {
 // - err: Any error encountered during setup.
 func New(ctx context.Context, cfg config.Config, version string) (c *Controller, err error) {
 	lifecycleCtx, cancel := context.WithCancel(ctx)
-	c = &Controller{background: &backgroundTasks{cancel: cancel}}
+	c = &Controller{background: &backgroundTasks{ctx: lifecycleCtx, cancel: cancel}}
 	defer func() {
 		if err != nil {
 			cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
