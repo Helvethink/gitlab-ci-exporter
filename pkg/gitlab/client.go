@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -23,6 +24,9 @@ import (
 const (
 	userAgent  = "gitlab-ci-pipelines-exporter"
 	tracerName = "gitlab-ci-pipelines-exporter"
+
+	readinessCheckTimeout   = 5 * time.Second
+	readinessBodyDrainLimit = 4 << 10
 )
 
 // Client is a wrapper around the official go-gitlab client,
@@ -141,7 +145,7 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 	// Create an HTTP client specifically for readiness checks with a 5-second timeout,
 	// optionally disabling TLS verification based on config.
 	readinessCheckHTTPClient := NewHTTPClient(cfg.DisableTLSVerify)
-	readinessCheckHTTPClient.Timeout = 5 * time.Second
+	readinessCheckHTTPClient.Timeout = readinessCheckTimeout
 
 	// Construct and return the wrapped Client, including:
 	// - the underlying go-gitlab client,
@@ -165,50 +169,49 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 // ReadinessCheck returns a healthcheck.Check function that performs
 // an HTTP GET request to the configured readiness URL to verify if
 // the GitLab service is ready to accept requests.
+//
+// ctx is the parent of every check: its cancellation (e.g. on shutdown) makes
+// the check fail, while each invocation gets its own bounded timeout and span.
 func (c *Client) ReadinessCheck(ctx context.Context) healthcheck.Check {
-	// Start a tracing span for observability
+	return func() error {
+		checkCtx, cancel := context.WithTimeout(ctx, readinessCheckTimeout)
+		defer cancel()
+		return c.checkReadiness(checkCtx)
+	}
+}
+
+// checkReadiness performs one readiness request using ctx and always releases
+// the response body so the underlying connection can be reused.
+func (c *Client) checkReadiness(ctx context.Context) error {
 	ctx, span := otel.Tracer(tracerName).Start(ctx, "gitlab:ReadinessCheck")
 	defer span.End()
 
-	// Return a closure that performs the actual readiness check when called
-	return func() error {
-		// Ensure the HTTP client for readiness checks is configured
-		if c.Readiness.HTTPClient == nil {
-			return fmt.Errorf("readiness http client not configured")
-		}
-
-		// Create a new HTTP GET request with the provided context
-		req, err := http.NewRequestWithContext(
-			ctx,
-			http.MethodGet,
-			c.Readiness.URL,
-			nil,
-		)
-		if err != nil {
-			// Return error if request creation failed
-			return err
-		}
-
-		// Execute the HTTP request using the readiness HTTP client
-		resp, err := c.Readiness.HTTPClient.Do(req)
-		if err != nil {
-			// Return error if the request failed to execute
-			return err
-		}
-
-		// Defensive check: response should not be nil
-		if resp == nil {
-			return fmt.Errorf("HTTP error: empty response")
-		}
-
-		// If the response status code is not 200 OK, return an error
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("HTTP error: %d", resp.StatusCode)
-		}
-
-		// Return nil indicating readiness check passed successfully
-		return nil
+	// Ensure the HTTP client for readiness checks is configured
+	if c.Readiness.HTTPClient == nil {
+		return fmt.Errorf("readiness http client not configured")
 	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.Readiness.URL, nil)
+	if err != nil {
+		return fmt.Errorf("creating readiness request: %w", err)
+	}
+
+	resp, err := c.Readiness.HTTPClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("performing readiness request: %w", err)
+	}
+	defer func() {
+		// Drain a bounded amount so the keep-alive connection can be reused
+		// without letting a large body stall the probe.
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, readinessBodyDrainLimit))
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP error: %d", resp.StatusCode)
+	}
+
+	return nil
 }
 
 // rateLimit enforces rate limiting by blocking until a token

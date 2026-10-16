@@ -3,8 +3,10 @@ package gitlab
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -146,6 +148,81 @@ func TestReadinessCheck_NoHTTPClient(t *testing.T) {
 	err := check()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "readiness http client not configured")
+}
+
+// bodySpy records whether the readiness check released the response body.
+type bodySpy struct {
+	io.Reader
+	closed atomic.Bool
+}
+
+func (b *bodySpy) Close() error {
+	b.closed.Store(true)
+	return nil
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestReadinessCheckClosesResponseBody(t *testing.T) {
+	tests := []struct {
+		name    string
+		status  int
+		wantErr string
+	}{
+		{name: "ready", status: http.StatusOK},
+		{name: "not ready", status: http.StatusServiceUnavailable, wantErr: "HTTP error: 503"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := &bodySpy{Reader: strings.NewReader("status")}
+			c := &Client{}
+			c.Readiness.URL = "https://gitlab.example.com/-/health"
+			c.Readiness.HTTPClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				return &http.Response{StatusCode: tt.status, Body: body, Request: r}, nil
+			})}
+
+			err := c.ReadinessCheck(context.Background())()
+
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, tt.wantErr)
+			}
+			assert.True(t, body.closed.Load(), "response body must be closed")
+		})
+	}
+}
+
+func TestReadinessCheckUsesFreshBoundedContextPerInvocation(t *testing.T) {
+	var contexts []context.Context
+	c := &Client{}
+	c.Readiness.URL = "https://gitlab.example.com/-/health"
+	c.Readiness.HTTPClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		contexts = append(contexts, r.Context())
+		// Honor cancellation like a real transport does.
+		if err := r.Context().Err(); err != nil {
+			return nil, err
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody, Request: r}, nil
+	})}
+	parent, cancel := context.WithCancel(context.Background())
+	check := c.ReadinessCheck(parent)
+
+	require.NoError(t, check())
+	require.NoError(t, check())
+
+	require.Len(t, contexts, 2)
+	assert.NotSame(t, contexts[0], contexts[1])
+	for _, ctx := range contexts[:2] {
+		_, hasDeadline := ctx.Deadline()
+		assert.True(t, hasDeadline, "each check must be bounded by its own timeout")
+		assert.ErrorIs(t, ctx.Err(), context.Canceled, "per-check context must be released after the check")
+	}
+
+	cancel()
+	require.ErrorIs(t, check(), context.Canceled)
 }
 
 func TestRateLimit(t *testing.T) {
