@@ -14,6 +14,7 @@ import (
 
 	"github.com/helvethink/gitlab-ci-exporter/internal/logging"
 	"github.com/helvethink/gitlab-ci-exporter/pkg/config"
+	"github.com/helvethink/gitlab-ci-exporter/pkg/monitor"
 )
 
 var start time.Time
@@ -93,7 +94,10 @@ func configure(ctx *cli.Context) (cfg config.Config, err error) {
 func parseGlobalFlags(ctx *cli.Context) (cfg config.Global, err error) {
 	// Parse internal monitoring address if provided
 	if listenerAddr := ctx.String("internal-monitoring-listener-address"); listenerAddr != "" {
-		cfg.InternalMonitoringListenerAddress, err = url.Parse(listenerAddr)
+		if cfg.InternalMonitoringListenerAddress, err = url.Parse(listenerAddr); err != nil {
+			return cfg, err
+		}
+		err = monitor.ValidateListenerAddress(cfg.InternalMonitoringListenerAddress)
 	}
 	return
 }

@@ -4,12 +4,15 @@ import (
 	"context"
 	"net"
 	"net/url"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
+	"github.com/helvethink/gitlab-ci-exporter/pkg/monitor"
 	pb "github.com/helvethink/gitlab-ci-exporter/pkg/monitor/protobuf"
 )
 
@@ -22,7 +25,12 @@ func (testMonitorServer) GetConfig(ctx context.Context, _ *pb.Empty) (*pb.Config
 }
 
 func TestNewClient(t *testing.T) {
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	dir, err := os.MkdirTemp("", "gcpe")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	socketPath := filepath.Join(dir, "m.sock")
+
+	lis, err := net.Listen("unix", socketPath)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = lis.Close()
@@ -36,7 +44,7 @@ func TestNewClient(t *testing.T) {
 		_ = grpcServer.Serve(lis)
 	}()
 
-	endpoint, err := url.Parse("dns:///" + lis.Addr().String())
+	endpoint, err := url.Parse("unix://" + socketPath)
 	require.NoError(t, err)
 
 	c, err := NewClient(context.Background(), endpoint)
@@ -53,4 +61,13 @@ func TestNewClient(t *testing.T) {
 func TestNewClientRequiresEndpoint(t *testing.T) {
 	_, err := NewClient(context.Background(), nil)
 	require.Error(t, err)
+}
+
+func TestNewClientRejectsNonUnixEndpoints(t *testing.T) {
+	for _, raw := range []string{"tcp://127.0.0.1:8082", "dns:///localhost:8082", "http://127.0.0.1:8082"} {
+		endpoint, err := url.Parse(raw)
+		require.NoError(t, err)
+		_, err = NewClient(context.Background(), endpoint)
+		require.ErrorIs(t, err, monitor.ErrUnsupportedListenerAddress, raw)
+	}
 }

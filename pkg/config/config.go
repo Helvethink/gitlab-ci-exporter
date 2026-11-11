@@ -281,6 +281,10 @@ func (c Config) ToYAML() string {
 	// Mask sensitive tokens in the config to avoid exposing them in the output YAML
 	c.Server.Webhook.SecretToken = "*******"
 	c.Gitlab.Token = "*******"
+	c.Redis.URL = RedactURL(c.Redis.URL)
+	c.OpenTelemetry.GRPCEndpoint = RedactURL(c.OpenTelemetry.GRPCEndpoint)
+	c.Gitlab.URL = RedactURL(c.Gitlab.URL)
+	c.Gitlab.HealthURL = RedactURL(c.Gitlab.HealthURL)
 
 	// Marshal the config struct into YAML bytes
 	b, err := yaml.Marshal(c)
@@ -311,9 +315,9 @@ func (c Config) Validate() error {
 
 // SchedulerConfig defines common scheduling behavior for background tasks or jobs.
 type SchedulerConfig struct {
-	OnInit          bool // OnInit determines whether the task should run immediately at startup.
-	Scheduled       bool // Scheduled determines whether the task should run on a recurring schedule.
-	IntervalSeconds int  // IntervalSeconds specifies how often (in seconds) the task should run when scheduled.
+	OnInit          bool `yaml:"on_init"`          // OnInit determines whether the task should run immediately at startup.
+	Scheduled       bool `yaml:"scheduled"`        // Scheduled determines whether the task should run on a recurring schedule.
+	IntervalSeconds int  `yaml:"interval_seconds"` // IntervalSeconds specifies how often (in seconds) the task should run when scheduled.
 }
 
 // Log returns a structured representation of the scheduler configuration

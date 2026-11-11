@@ -824,3 +824,23 @@ and deletes; repeated GitLab API reads can still occur. During a graceful stop, 
 to finish before closing the Redis connection; an interrupted task can be
 redelivered. When the shared reservation limit is reached, new scheduling
 attempts are skipped until a reservation completes.
+
+### Internal monitoring
+
+The exporter can serve an internal gRPC monitoring service, used by the `monitor` terminal UI. It is disabled unless `--internal-monitoring-listener-address` (or `$GCPE_INTERNAL_MONITORING_LISTENER_ADDRESS`) is set.
+
+The service is only available on a **Unix domain socket**. TCP and other schemes are rejected at startup:
+
+```sh
+gitlab-ci-exporter -m unix:///var/run/gcpe/monitor.sock run --config config.yml
+gitlab-ci-exporter -m unix:///var/run/gcpe/monitor.sock monitor
+```
+
+Access controls:
+
+- The socket file is created with `0600` permissions. If the path already exists and is not a socket, the exporter refuses to start instead of deleting it.
+- On Linux and macOS, each connection is accepted only if the peer process runs as the same user as the exporter, or as root. On other platforms, access relies on the file permissions alone.
+- At most 8 concurrent connections and 4 concurrent RPCs per connection are served. Additional connections wait in the socket backlog.
+- `GetConfig` returns an allowlisted summary: settings, schedules, integration toggles, and project counts. It never includes the GitLab token, the webhook secret, the Redis URL, URL credentials, or per-project settings.
+
+To use the monitor from a container, share the socket directory as a volume and run both processes as the same user.
