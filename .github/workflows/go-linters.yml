@@ -31,4 +31,3 @@ jobs:
           # Keep in sync with GOLANGCI_LINT_VERSION in the Makefile.
           version: v2.12.2
           args: -c .golangci.yml
-

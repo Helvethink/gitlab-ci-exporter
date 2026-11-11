@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-logr/stdr"
 	log "github.com/sirupsen/logrus"
-	"github.com/uptrace/opentelemetry-go-extra/otellogrus"
 	"github.com/urfave/cli/v2"
 	"github.com/vmihailenco/taskq/v4"
 
@@ -57,12 +56,12 @@ func configure(ctx *cli.Context) (cfg config.Config, err error) {
 	}
 
 	// Add OpenTelemetry logging hook to integrate tracing into logs
-	log.AddHook(otellogrus.NewHook(otellogrus.WithLevels(
+	log.AddHook(logger.NewOtelHook(
 		log.PanicLevel,
 		log.FatalLevel,
 		log.ErrorLevel,
 		log.WarnLevel,
-	)))
+	))
 
 	// Redirect task queue logs to the main log system using standard library compatibility
 	taskq.SetLogger(stdr.New(stdlibLog.New(log.StandardLogger().WriterLevel(log.WarnLevel), "taskq", 0)))

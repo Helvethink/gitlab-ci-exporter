@@ -213,7 +213,7 @@ func TestServeReturnsListenerError(t *testing.T) {
 }
 
 func TestServeStopsAndRemovesSocket(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "monitor.sock")
+	path := shortSocketPath(t)
 	cfg := config.New()
 	cfg.Global.InternalMonitoringListenerAddress = &url.URL{Scheme: "unix", Path: path}
 	s := NewServer(&gitlab.Client{}, cfg, store.NewLocalStore(), nil)
@@ -249,7 +249,7 @@ func TestGetTelemetrySendFailureIsPerClient(t *testing.T) {
 }
 
 func TestDisconnectedTelemetryClientDoesNotStopServer(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "monitor.sock")
+	path := shortSocketPath(t)
 	cfg := config.New()
 	cfg.Global.InternalMonitoringListenerAddress = &url.URL{Scheme: "unix", Path: path}
 	g := &gitlab.Client{RateCounter: ratecounter.NewRateCounter(time.Second)}
@@ -295,7 +295,7 @@ func TestDisconnectedTelemetryClientDoesNotStopServer(t *testing.T) {
 }
 
 func TestServeStopsActiveTelemetryStream(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "monitor.sock")
+	path := shortSocketPath(t)
 	cfg := config.New()
 	cfg.Global.InternalMonitoringListenerAddress = &url.URL{Scheme: "unix", Path: path}
 	g := &gitlab.Client{RateCounter: ratecounter.NewRateCounter(time.Second)}
@@ -337,4 +337,16 @@ func TestServeStopsActiveTelemetryStream(t *testing.T) {
 		}
 	}
 	require.Error(t, err)
+}
+
+// shortSocketPath returns a Unix socket path short enough for the 104-byte
+// sun_path limit on macOS; t.TempDir() paths there are often too long.
+func shortSocketPath(t *testing.T) string {
+	t.Helper()
+
+	dir, err := os.MkdirTemp("", "gce")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+
+	return filepath.Join(dir, "monitor.sock")
 }
