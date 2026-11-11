@@ -80,8 +80,13 @@ The reason the pipeline exists.
 
 ### Variables
 
-User defined variables for the pipelines.
-Those are not fetched by default, you need to set `project_defaults.pull.pipeline.variables.enabled` to **true**
+Comma-separated, sorted **keys** of the user-defined pipeline variables that are allowlisted.
+Variable values are never exported, persisted, logged or traced.
+
+Nothing is exported by default. Set `project_defaults.pull.pipeline.variables.enabled` to **true** and allowlist keys with
+`variables.keys` (exact names) and/or `variables.regexp`. When neither is set, the GitLab variables API is not called.
+
+See [Pipeline variables migration](pipeline-variables-migration.md) when upgrading from a version that exported `KEY:VALUE` pairs.
 
 ### Test Suite Name
 
@@ -521,12 +526,18 @@ project_defaults:
           aggregation_regexp: shared-runners-manager-(\d*)\.gitlab\.com
 
       variables:
-        # Fetch pipeline variables in a separate metric (optional, default: false)
+        # Export the keys of allowlisted pipeline variables in the
+        # 'variables' label (optional, default: false).
+        # Variable VALUES are never fetched into metrics, Redis, logs or traces.
         enabled: false
 
-        # Filter pipelines variables to include
-        # (optional, default: ".*", all variables)
-        regexp: ".*"
+        # Explicit allowlist of variable keys to export
+        # (optional, default: [], nothing is exported)
+        keys: []
+
+        # Additionally export keys matching this expression
+        # (optional, default: "", matches nothing)
+        regexp: ""
       
       test_reports:
         # Fetch test reports in a separate metric (optiona, default: false)
@@ -636,12 +647,18 @@ projects:
             aggregation_regexp: shared-runners-manager-(\d*)\.gitlab\.com
 
         variables:
-          # Fetch pipeline variables in a separate metric (optional, default: false)
+          # Export the keys of allowlisted pipeline variables in the
+          # 'variables' label (optional, default: false).
+          # Variable VALUES are never fetched into metrics, Redis, logs or traces.
           enabled: false
 
-          # Filter pipelines variables to include
-          # (optional, default: ".*", all variables)
-          regexp: ".*"
+          # Explicit allowlist of variable keys to export
+          # (optional, default: [], nothing is exported)
+          keys: []
+
+          # Additionally export keys matching this expression
+          # (optional, default: "", matches nothing)
+          regexp: ""
           
         test_reports:
           # Fetch test reports in a separate metric (optiona, default: false)
@@ -770,12 +787,18 @@ wildcards:
             aggregation_regexp: shared-runners-manager-(\d*)\.gitlab\.com
 
         variables:
-          # Fetch pipeline variables in a separate metric (optional, default: false)
+          # Export the keys of allowlisted pipeline variables in the
+          # 'variables' label (optional, default: false).
+          # Variable VALUES are never fetched into metrics, Redis, logs or traces.
           enabled: false
 
-          # Filter pipelines variables to include
-          # (optional, default: ".*", all variables)
-          regexp: ".*"
+          # Explicit allowlist of variable keys to export
+          # (optional, default: [], nothing is exported)
+          keys: []
+
+          # Additionally export keys matching this expression
+          # (optional, default: "", matches nothing)
+          regexp: ""
           
         test_reports:
           # Fetch test reports in a separate metric (optiona, default: false)

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	goGitlab "gitlab.com/gitlab-org/api/client-go"
 
+	"github.com/helvethink/gitlab-ci-exporter/pkg/config"
 	"github.com/helvethink/gitlab-ci-exporter/pkg/schemas"
 )
 
@@ -129,21 +130,22 @@ func TestGetProjectPipelines_APIError(t *testing.T) {
 	assert.Contains(t, err.Error(), "error listing project pipelines")
 }
 
-func TestGetRefPipelineVariablesAsConcatenatedString_EmptyPipeline(t *testing.T) {
+func TestGetRefPipelineVariableKeys_EmptyPipeline(t *testing.T) {
 	c := &Client{
 		RateLimiter: noopLimiterPipelinesTests{},
 		RateCounter: ratecounter.NewRateCounter(time.Second),
 	}
 
 	p := schemas.NewProject("group/project")
+	p.Pull.Pipeline.Variables.Regexp = `.*`
 	ref := schemas.NewRef(p, schemas.RefKindBranch, "main")
 
-	got, err := c.GetRefPipelineVariablesAsConcatenatedString(context.Background(), ref, schemas.Pipeline{})
+	got, err := c.GetRefPipelineVariableKeys(context.Background(), ref, schemas.Pipeline{})
 	require.NoError(t, err)
 	assert.Equal(t, "", got)
 }
 
-func TestGetRefPipelineVariablesAsConcatenatedString_InvalidRegexp(t *testing.T) {
+func TestGetRefPipelineVariableKeys_InvalidRegexp(t *testing.T) {
 	c := &Client{
 		RateLimiter: noopLimiterPipelinesTests{},
 		RateCounter: ratecounter.NewRateCounter(time.Second),
@@ -153,31 +155,80 @@ func TestGetRefPipelineVariablesAsConcatenatedString_InvalidRegexp(t *testing.T)
 	p.Pull.Pipeline.Variables.Regexp = "["
 	ref := schemas.NewRef(p, schemas.RefKindBranch, "main")
 
-	got, err := c.GetRefPipelineVariablesAsConcatenatedString(context.Background(), ref, schemas.Pipeline{ID: 123})
+	got, err := c.GetRefPipelineVariableKeys(context.Background(), ref, schemas.Pipeline{ID: 123})
 	assert.Error(t, err)
 	assert.Equal(t, "", got)
 	assert.Contains(t, err.Error(), "provided filter regex")
 }
 
-func TestGetRefPipelineVariablesAsConcatenatedString_FiltersVariables(t *testing.T) {
-	c := newTestGitLabClientForPipelines(t, func(w http.ResponseWriter, r *http.Request) {
-		assert.True(t, strings.Contains(r.URL.Path, "/pipelines/123/variables"))
-		w.Header().Set("Content-Type", "application/json")
+// sensitiveVariablesPayload contains values that look like credentials. None of them
+// may ever be returned by GetRefPipelineVariableKeys.
+const sensitiveVariablesPayload = `[
+	{"key":"DEPLOY_ENV","value":"production"},
+	{"key":"API_TOKEN","value":"glpat-SENSITIVEVALUE0001"},
+	{"key":"DB_PASSWORD","value":"s3cr3t:with,separators"},
+	{"key":"RELEASE","value":"v1.2.3"},
+	{"key":"bad key:","value":"SENSITIVEVALUE0002"}
+]`
 
-		_, _ = w.Write([]byte(`[
-			{"key":"FOO","value":"1"},
-			{"key":"BAZ","value":"2"},
-			{"key":"BAR","value":"3"}
-		]`))
+var sensitiveValues = []string{"production", "SENSITIVEVALUE", "s3cr3t", "v1.2.3"}
+
+func TestGetRefPipelineVariableKeys_DefaultDenyDoesNotCallGitLab(t *testing.T) {
+	called := false
+	c := newTestGitLabClientForPipelines(t, func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(sensitiveVariablesPayload))
 	})
 
 	p := schemas.NewProject("group/project")
-	p.Pull.Pipeline.Variables.Regexp = `^(FOO|BAR)$`
+	p.Pull.Pipeline.Variables.Enabled = true
 	ref := schemas.NewRef(p, schemas.RefKindBranch, "main")
 
-	got, err := c.GetRefPipelineVariablesAsConcatenatedString(context.Background(), ref, schemas.Pipeline{ID: 123})
+	got, err := c.GetRefPipelineVariableKeys(context.Background(), ref, schemas.Pipeline{ID: 123})
 	require.NoError(t, err)
-	assert.Equal(t, "FOO:1,BAR:3", got)
+	assert.Equal(t, "", got)
+	assert.False(t, called, "default configuration must not fetch pipeline variables")
+}
+
+func TestGetRefPipelineVariableKeys_ReturnsOnlyAllowlistedKeys(t *testing.T) {
+	tests := []struct {
+		name   string
+		keys   []string
+		regexp string
+		want   string
+	}{
+		{name: "explicit keys", keys: []string{"RELEASE", "DEPLOY_ENV", "MISSING"}, want: "DEPLOY_ENV,RELEASE"},
+		{name: "regexp", regexp: `^(DEPLOY_ENV|RELEASE)$`, want: "DEPLOY_ENV,RELEASE"},
+		{name: "keys and regexp", keys: []string{"RELEASE"}, regexp: `^DEPLOY_`, want: "DEPLOY_ENV,RELEASE"},
+		{name: "match-all regexp still exports keys only", regexp: `.*`, want: "API_TOKEN,DB_PASSWORD,DEPLOY_ENV,RELEASE"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := newTestGitLabClientForPipelines(t, func(w http.ResponseWriter, r *http.Request) {
+				assert.True(t, strings.Contains(r.URL.Path, "/pipelines/123/variables"))
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(sensitiveVariablesPayload))
+			})
+
+			p := schemas.NewProject("group/project")
+			p.Pull.Pipeline.Variables.Enabled = true
+			p.Pull.Pipeline.Variables.Regexp = tt.regexp
+			keys, err := config.NewPipelineVariableKeys(tt.keys...)
+			require.NoError(t, err)
+			p.Pull.Pipeline.Variables.Keys = keys
+			ref := schemas.NewRef(p, schemas.RefKindBranch, "main")
+
+			got, err := c.GetRefPipelineVariableKeys(context.Background(), ref, schemas.Pipeline{ID: 123})
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+			assert.NotContains(t, got, ":")
+			for _, v := range sensitiveValues {
+				assert.NotContains(t, got, v)
+			}
+		})
+	}
 }
 
 func TestGetRefsFromPipelines_BranchesMostRecent(t *testing.T) {

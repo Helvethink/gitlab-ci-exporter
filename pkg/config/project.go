@@ -171,14 +171,23 @@ type ProjectPullPipelineJobsRunnerDescription struct {
 }
 
 // ProjectPullPipelineVariables configures fetching pipeline variables.
+//
+// Only variable keys are ever exported. Variable values never leave the GitLab
+// API response: they are not stored, logged, traced, or exposed as labels.
+// Selection is default-deny: a key is exported only when it is listed in Keys
+// or matches a non-empty Regexp.
 type ProjectPullPipelineVariables struct {
 	// Enabled toggles whether to fetch variables included in the pipeline.
 	// Defaults to false.
 	Enabled bool `default:"false" yaml:"enabled"`
 
-	// Regexp filters pipeline variable values by regex to control which variables are fetched.
-	// Defaults to match all (".*").
-	Regexp string `default:".*" yaml:"regexp"`
+	// Keys is an explicit allowlist of variable keys to export.
+	// Defaults to empty (no key is exported).
+	Keys PipelineVariableKeys `yaml:"keys"`
+
+	// Regexp additionally allows variable keys matching this expression.
+	// Defaults to empty, which matches nothing.
+	Regexp string `default:"" yaml:"regexp"`
 }
 
 // ProjectPullPipelineTestReports configures retrieval of test reports from pipelines.

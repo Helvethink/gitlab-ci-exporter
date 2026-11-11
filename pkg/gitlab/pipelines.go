@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -94,9 +95,14 @@ func (c *Client) GetProjectPipelines(
 	return pipelines, resp, nil
 }
 
-// GetRefPipelineVariablesAsConcatenatedString returns filtered pipeline variables as a concatenated string
-func (c *Client) GetRefPipelineVariablesAsConcatenatedString(ctx context.Context, ref schemas.Ref, pipeline schemas.Pipeline) (string, error) {
-	ctx, span := otel.Tracer(tracerName).Start(ctx, "gitlab:GetRefPipelineVariablesAsConcatenatedString")
+// GetRefPipelineVariableKeys returns the allowlisted variable keys of a pipeline as a
+// sorted, comma-separated string.
+//
+// Variable values are never returned, stored, logged, or traced. Selection is
+// default-deny: when neither an explicit key allowlist nor a key regexp is configured,
+// GitLab is not queried and an empty string is returned.
+func (c *Client) GetRefPipelineVariableKeys(ctx context.Context, ref schemas.Ref, pipeline schemas.Pipeline) (string, error) {
+	ctx, span := otel.Tracer(tracerName).Start(ctx, "gitlab:GetRefPipelineVariableKeys")
 	defer span.End()
 	span.SetAttributes(attribute.String("project_name", ref.Project.Name))
 	span.SetAttributes(attribute.String("ref_name", ref.Name))
@@ -113,49 +119,65 @@ func (c *Client) GetRefPipelineVariablesAsConcatenatedString(ctx context.Context
 		return "", nil
 	}
 
+	settings := ref.Project.Pull.Pipeline.Variables
+	allowedKeys := settings.Keys
+
+	var keyFilter *regexp.Regexp
+	if settings.Regexp != "" {
+		var err error
+		keyFilter, err = regexp.Compile(settings.Regexp)
+		if err != nil {
+			return "", fmt.Errorf("the provided filter regex for pipeline variables is invalid '(%s)': %w", settings.Regexp, err)
+		}
+	}
+
+	// Default-deny: nothing is allowlisted, so there is nothing to fetch.
+	if len(allowedKeys.List()) == 0 && keyFilter == nil {
+		return "", nil
+	}
+
 	log.WithFields(
 		log.Fields{
 			"project-name": ref.Project.Name,
 			"ref":          ref.Name,
 			"pipeline-id":  pipeline.ID,
 		},
-	).Debug("fetching pipeline variables")
-
-	// Compile regex filter for variables
-	variablesFilter, err := regexp.Compile(ref.Project.Pull.Pipeline.Variables.Regexp)
-	if err != nil {
-		return "", fmt.Errorf(
-			"the provided filter regex for pipeline variables is invalid '(%s)': %v",
-			ref.Project.Pull.Pipeline.Variables.Regexp,
-			err,
-		)
-	}
+	).Debug("fetching pipeline variable keys")
 
 	if limitErr := c.rateLimit(ctx); limitErr != nil {
 		return "", limitErr
 	}
 
-	// Fetch variables from GitLab
 	variables, resp, err := c.Pipelines.GetPipelineVariables(ref.Project.Name, pipeline.ID, goGitlab.WithContext(ctx))
 	if err != nil {
-		return "", fmt.Errorf("could not fetch pipeline variables for %d: %s", pipeline.ID, err.Error())
+		return "", fmt.Errorf("could not fetch pipeline variables for %d: %w", pipeline.ID, err)
 	}
 
 	c.requestsRemaining(resp)
 
-	// Filter variables using regex
-	var keptVariables []string
-	if len(variables) > 0 {
-		for _, v := range variables {
-			if variablesFilter.MatchString(v.Key) {
-				keptVariables = append(keptVariables, strings.Join([]string{v.Key, v.Value}, ":"))
-			}
+	return allowlistedVariableKeys(variables, allowedKeys.Contains, keyFilter), nil
+}
+
+// allowlistedVariableKeys keeps only the keys of variables that are allowlisted and
+// returns them sorted, de-duplicated and comma-separated. Values are discarded.
+func allowlistedVariableKeys(variables []*goGitlab.PipelineVariable, allowed func(string) bool, filter *regexp.Regexp) string {
+	keys := make([]string, 0, len(variables))
+	for _, v := range variables {
+		if v == nil || !pipelineVariableKeyPattern.MatchString(v.Key) {
+			continue
+		}
+		if allowed(v.Key) || (filter != nil && filter.MatchString(v.Key)) {
+			keys = append(keys, v.Key)
 		}
 	}
+	slices.Sort(keys)
+	keys = slices.Compact(keys)
 
-	// Concatenate filtered variables as a comma-separated string
-	return strings.Join(keptVariables, ","), nil
+	return strings.Join(keys, ",")
 }
+
+// pipelineVariableKeyPattern matches the characters GitLab accepts in CI/CD variable keys.
+var pipelineVariableKeyPattern = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
 
 // GetRefsFromPipelines retrieves references (branches, tags, or merge requests) based on GitLab pipelines.
 // It filters them using the project's configuration, including optional regex, max age, and deletion status.
