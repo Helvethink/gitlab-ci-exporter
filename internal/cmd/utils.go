@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-logr/stdr"
 	log "github.com/sirupsen/logrus"
-	"github.com/uptrace/opentelemetry-go-extra/otellogrus"
 	"github.com/urfave/cli/v2"
 	"github.com/vmihailenco/taskq/v4"
 
@@ -57,12 +56,12 @@ func configure(ctx *cli.Context) (cfg config.Config, err error) {
 	}
 
 	// Add OpenTelemetry logging hook to integrate tracing into logs
-	log.AddHook(otellogrus.NewHook(otellogrus.WithLevels(
+	log.AddHook(logger.NewOtelHook(
 		log.PanicLevel,
 		log.FatalLevel,
 		log.ErrorLevel,
 		log.WarnLevel,
-	)))
+	))
 
 	// Redirect task queue logs to the main log system using standard library compatibility
 	taskq.SetLogger(stdr.New(stdlibLog.New(log.StandardLogger().WriterLevel(log.WarnLevel), "taskq", 0)))
@@ -101,11 +100,14 @@ func parseGlobalFlags(ctx *cli.Context) (cfg config.Global, err error) {
 
 // exit logs the execution time and error (if any), then returns a CLI exit code.
 func exit(exitCode int, err error) cli.ExitCoder {
-	defer log.WithFields(
-		log.Fields{
-			"execution-time": time.Since(start), // nolint: govet
-		},
-	).Debug("exited..") // Log execution time when exiting
+	// Wrap in a closure so time.Since is evaluated at exit, not at defer time.
+	defer func() {
+		log.WithFields(
+			log.Fields{
+				"execution-time": time.Since(start),
+			},
+		).Debug("exited..")
+	}()
 
 	if err != nil {
 		log.WithError(err).Error() // Log error if present
