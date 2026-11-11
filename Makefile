@@ -7,7 +7,7 @@ COVERAGE_FILE  := coverage.out
 REPOSITORY     := "helvethink/$(NAME)"
 .DEFAULT_GOAL  := help
 GOLANG_VERSION := 1.26.1
-GOLANGCI_LINT_VERSION ?= v2.1.5
+GOLANGCI_LINT_VERSION ?= v2.12.2
 
 .PHONY: lint
 lint: ## Run all lint related tests againts the codebase
