@@ -102,16 +102,16 @@ func (c *Controller) ProcessPipelinesMetrics(ctx context.Context, ref schemas.Re
 		return err
 	}
 
-	// fetch pipeline variables
+	// fetch allowlisted pipeline variable keys (values are never retrieved)
 	if ref.Project.Pull.Pipeline.Variables.Enabled {
 		if exists, _ := c.Store.PipelineVariablesExists(ctx, pipeline); !exists {
-			variables, errGetRef := c.Gitlab.GetRefPipelineVariablesAsConcatenatedString(ctx, ref, pipeline)
-			// nolint:errcheck
-			c.Store.SetPipelineVariables(ctx, pipeline, variables)
-			pipeline.Variables = variables
+			variables, errGetRef := c.Gitlab.GetRefPipelineVariableKeys(ctx, ref, pipeline)
 			if errGetRef != nil {
 				return errGetRef
 			}
+			// nolint:errcheck
+			c.Store.SetPipelineVariables(ctx, pipeline, variables)
+			pipeline.Variables = variables
 		} else {
 			variables, _ := c.Store.GetPipelineVariables(ctx, pipeline)
 			pipeline.Variables = variables

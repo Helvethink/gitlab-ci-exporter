@@ -105,6 +105,13 @@ func New(ctx context.Context, cfg config.Config, version string) (c *Controller,
 			Runner:      cfg.Redis.RunnerTTL,
 			Metrics:     cfg.Redis.MetricTTL,
 		}))
+
+		// Fail closed: never serve metrics from a Redis database that may still hold
+		// pipeline-variable values persisted by an earlier version.
+		if err = redisStore.PurgeLegacyPipelineVariables(lifecycleCtx); err != nil {
+			err = errors.Wrap(err, "purge legacy pipeline variables from redis")
+			return
+		}
 	}
 	c.Store = store.New(lifecycleCtx, redisStore, c.Config.Projects)
 
