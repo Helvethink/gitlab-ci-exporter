@@ -8,8 +8,13 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/paulbellamy/ratecounter"
 	goGitlab "gitlab.com/gitlab-org/api/client-go"
+
+	gitlabclient "github.com/helvethink/gitlab-ci-exporter/pkg/gitlab"
+	"github.com/helvethink/gitlab-ci-exporter/pkg/store"
 )
 
 const fuzzWebhookSecret = "fuzz-webhook-secret"
@@ -41,16 +46,27 @@ var fuzzWebhookPayloads = []string{
 }
 
 // fuzzWebhookController returns a controller whose GitLab API answers 404 to
-// every request, with the webhook enabled.
-func fuzzWebhookController(t testing.TB) *Controller {
-	t.Helper()
-	tt, ok := t.(*testing.T)
-	if !ok {
-		t.Fatalf("fuzzWebhookController requires *testing.T")
+// every request, with the webhook enabled. It is built once per fuzz target:
+// starting a server per input exhausts local ports at fuzzing speed.
+func fuzzWebhookController(tb testing.TB) *Controller {
+	tb.Helper()
+
+	server := httptest.NewServer(http.NotFoundHandler())
+	tb.Cleanup(server.Close)
+
+	gl, err := goGitlab.NewClient("fuzz-token", goGitlab.WithBaseURL(server.URL+"/api/v4"), goGitlab.WithoutRetries())
+	if err != nil {
+		tb.Fatalf("create GitLab client: %v", err)
 	}
-	c := newTestRunnerController(tt, func(w http.ResponseWriter, _ *http.Request) {
-		http.NotFound(w, nil)
-	})
+
+	c := &Controller{
+		Store: store.NewLocalStore(),
+		Gitlab: &gitlabclient.Client{
+			Client:      gl,
+			RateLimiter: noopLimiterControllerRunnersTests{},
+			RateCounter: ratecounter.NewRateCounter(time.Second),
+		},
+	}
 	c.Config.Server.Webhook.Enabled = true
 	c.Config.Server.Webhook.SecretToken = fuzzWebhookSecret
 	c.Config.Server.Webhook.MaximumBodyBytes = 64 << 10
@@ -78,8 +94,9 @@ func FuzzWebhookHTTP(f *testing.F) {
 		http.StatusServiceUnavailable,
 	}
 
+	c := fuzzWebhookController(f)
+
 	f.Fuzz(func(t *testing.T, eventType string, payload []byte, validToken bool) {
-		c := fuzzWebhookController(t)
 		handler, ok := c.NewWebhookHandler(context.Background()).(*webhookHandler)
 		if !ok {
 			t.Fatalf("unexpected handler type")
@@ -133,6 +150,8 @@ func FuzzWebhookProcessing(f *testing.F) {
 		}
 	}
 
+	base := fuzzWebhookController(f)
+
 	f.Fuzz(func(t *testing.T, eventType string, payload []byte) {
 		req := httptest.NewRequest(http.MethodPost, "/webhook", nil)
 		req.Header.Set("X-Gitlab-Event", eventType)
@@ -141,8 +160,9 @@ func FuzzWebhookProcessing(f *testing.F) {
 			return
 		}
 
-		c := fuzzWebhookController(t)
-		h := &webhookHandler{controller: c}
+		c := *base
+		c.Store = store.NewLocalStore()
+		h := &webhookHandler{controller: &c}
 		h.processWebhookEvent(context.Background(), event)
 	})
 }
