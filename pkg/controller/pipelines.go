@@ -104,100 +104,106 @@ func (c *Controller) ProcessPipelinesMetrics(ctx context.Context, ref schemas.Re
 
 	// fetch allowlisted pipeline variable keys (values are never retrieved)
 	if ref.Project.Pull.Pipeline.Variables.Enabled {
-		if exists, _ := c.Store.PipelineVariablesExists(ctx, pipeline); !exists {
-			variables, errGetRef := c.Gitlab.GetRefPipelineVariableKeys(ctx, ref, pipeline)
-			if errGetRef != nil {
-				return errGetRef
-			}
-			// nolint:errcheck
-			c.Store.SetPipelineVariables(ctx, pipeline, variables)
-			pipeline.Variables = variables
-		} else {
-			variables, _ := c.Store.GetPipelineVariables(ctx, pipeline)
-			pipeline.Variables = variables
+		variables, err := c.pipelineVariableKeys(ctx, ref, pipeline)
+		if err != nil {
+			return err
 		}
+		pipeline.Variables = variables
 	}
 
-	var cachedPipeline schemas.Pipeline
+	// Cache policy: the pipeline cache only decides whether the pipeline entry and
+	// all of its jobs must be refreshed. A failed read is logged and treated as a
+	// cache miss (best-effort). Pipeline, ref, and metric writes remain required.
+	cachedPipeline := schemas.Pipeline{ID: pipeline.ID}
+	if err := c.Store.GetPipeline(ctx, &cachedPipeline); err != nil {
+		logPipelineCacheError(ctx, err, "read pipeline cache", pipeline.ID)
+		cachedPipeline = schemas.Pipeline{}
+	}
 
-	// nolint:errcheck
-	if c.Store.GetPipeline(ctx, &cachedPipeline); cachedPipeline.ID == 0 || !reflect.DeepEqual(pipeline, cachedPipeline) {
-		formerPipeline := ref.LatestPipeline
-		ref.LatestPipeline = pipeline
+	// On a cache miss cachedPipeline only carries the ID, so it differs from the
+	// fetched pipeline. The ref and the metrics below are written on every pull
+	// even when the pipeline is unchanged: those writes renew their Redis TTLs,
+	// and expired entries are garbage collected.
+	pipelineChanged := !reflect.DeepEqual(pipeline, cachedPipeline)
+	formerPipeline := ref.LatestPipeline
+	ref.LatestPipeline = pipeline
 
+	if pipelineChanged {
 		if err = c.Store.SetPipeline(ctx, pipeline); err != nil {
 			return err
 		}
+	}
 
-		// Update the ref in the store with the new pipeline data
-		if err = c.Store.SetRef(ctx, ref); err != nil {
-			return err
-		}
+	// Update the ref in the store with the new pipeline data
+	if err = c.Store.SetRef(ctx, ref); err != nil {
+		return err
+	}
 
-		// Prepare default labels for metrics based on the ref info
-		labels := ref.DefaultLabelsValues()
-		labels["pipeline_id"] = strconv.FormatInt(pipeline.ID, 10)
-		labels["status"] = pipeline.Status
+	// Prepare default labels for metrics based on the ref info
+	labels := ref.DefaultLabelsValues()
+	labels["pipeline_id"] = strconv.FormatInt(pipeline.ID, 10)
+	labels["status"] = pipeline.Status
 
-		// If the metric does not exist yet, start with 0 instead of 1
-		// this could cause some false positives in prometheus
-		// when restarting the exporter otherwise
-		runCount := schemas.Metric{
-			Kind:   schemas.MetricKindRunCount,
-			Labels: labels,
-		}
+	// If the metric does not exist yet, start with 0 instead of 1
+	// this could cause some false positives in prometheus
+	// when restarting the exporter otherwise
+	runCount := schemas.Metric{
+		Kind:   schemas.MetricKindRunCount,
+		Labels: labels,
+	}
 
-		storeGetMetric(ctx, c.Store, &runCount)
+	storeGetMetric(ctx, c.Store, &runCount)
 
-		// Increment run count only if this is a new pipeline different from the previous one
-		if formerPipeline.ID != 0 && formerPipeline.ID != ref.LatestPipeline.ID {
-			runCount.Value++
-		}
-		// Store the updated run count metric
-		storeSetMetric(ctx, c.Store, runCount)
+	// Increment run count only if this is a new pipeline different from the previous one
+	if formerPipeline.ID != 0 && formerPipeline.ID != ref.LatestPipeline.ID {
+		runCount.Value++
+	}
+	// Store the updated run count metric
+	storeSetMetric(ctx, c.Store, runCount)
 
-		// Store other key metrics for the pipeline: coverage, ID, status, duration, queue time, and timestamp
-		storeSetMetric(ctx, c.Store, schemas.Metric{
-			Kind:   schemas.MetricKindCoverage,
-			Labels: labels,
-			Value:  pipeline.Coverage,
-		})
+	// Store other key metrics for the pipeline: coverage, ID, status, duration, queue time, and timestamp
+	storeSetMetric(ctx, c.Store, schemas.Metric{
+		Kind:   schemas.MetricKindCoverage,
+		Labels: labels,
+		Value:  pipeline.Coverage,
+	})
 
-		storeSetMetric(ctx, c.Store, schemas.Metric{
-			Kind:   schemas.MetricKindID,
-			Labels: labels,
-			Value:  float64(pipeline.ID),
-		})
+	storeSetMetric(ctx, c.Store, schemas.Metric{
+		Kind:   schemas.MetricKindID,
+		Labels: labels,
+		Value:  float64(pipeline.ID),
+	})
 
-		emitStatusMetric(
-			ctx,
-			c.Store,
-			schemas.MetricKindStatus,
-			labels,
-			statusesList[:], // List of valid statuses for metrics emission
-			pipeline.Status,
-			ref.Project.OutputSparseStatusMetrics,
-		)
+	emitStatusMetric(
+		ctx,
+		c.Store,
+		schemas.MetricKindStatus,
+		labels,
+		statusesList[:], // List of valid statuses for metrics emission
+		pipeline.Status,
+		ref.Project.OutputSparseStatusMetrics,
+	)
 
-		storeSetMetric(ctx, c.Store, schemas.Metric{
-			Kind:   schemas.MetricKindDurationSeconds,
-			Labels: labels,
-			Value:  pipeline.DurationSeconds,
-		})
+	storeSetMetric(ctx, c.Store, schemas.Metric{
+		Kind:   schemas.MetricKindDurationSeconds,
+		Labels: labels,
+		Value:  pipeline.DurationSeconds,
+	})
 
-		storeSetMetric(ctx, c.Store, schemas.Metric{
-			Kind:   schemas.MetricKindQueuedDurationSeconds,
-			Labels: labels,
-			Value:  pipeline.QueuedDurationSeconds,
-		})
+	storeSetMetric(ctx, c.Store, schemas.Metric{
+		Kind:   schemas.MetricKindQueuedDurationSeconds,
+		Labels: labels,
+		Value:  pipeline.QueuedDurationSeconds,
+	})
 
-		storeSetMetric(ctx, c.Store, schemas.Metric{
-			Kind:   schemas.MetricKindTimestamp,
-			Labels: labels,
-			Value:  pipeline.Timestamp,
-		})
+	storeSetMetric(ctx, c.Store, schemas.Metric{
+		Kind:   schemas.MetricKindTimestamp,
+		Labels: labels,
+		Value:  pipeline.Timestamp,
+	})
 
-		// If job metrics collection is enabled, pull metrics for all jobs in the pipeline
+	if pipelineChanged {
+		// Pull metrics for all jobs of the new or updated pipeline
 		if ref.Project.Pull.Pipeline.Jobs.Enabled {
 			if err := c.PullRefPipelineJobsMetrics(ctx, ref); err != nil {
 				return err
@@ -432,4 +438,44 @@ func (c *Controller) ProcessTestCaseMetrics(ctx context.Context, ref schemas.Ref
 		tc.Status,                             // Current status of this test case
 		ref.Project.OutputSparseStatusMetrics, // Whether to output sparse status metrics for efficiency
 	)
+}
+
+// pipelineVariableKeys returns the allowlisted variable keys of a pipeline, using
+// the store as a best-effort cache.
+//
+// Cache policy: every cache read or write failure is logged and treated as a cache
+// miss, because the authoritative data can always be fetched again from GitLab.
+// Only a GitLab failure is returned to the caller.
+func (c *Controller) pipelineVariableKeys(ctx context.Context, ref schemas.Ref, pipeline schemas.Pipeline) (string, error) {
+	exists, err := c.Store.PipelineVariablesExists(ctx, pipeline)
+	if err != nil {
+		logPipelineCacheError(ctx, err, "check pipeline variables cache", pipeline.ID)
+		exists = false
+	}
+
+	if exists {
+		variables, err := c.Store.GetPipelineVariables(ctx, pipeline)
+		if err == nil {
+			return variables, nil
+		}
+		logPipelineCacheError(ctx, err, "read pipeline variables cache", pipeline.ID)
+	}
+
+	variables, err := c.Gitlab.GetRefPipelineVariableKeys(ctx, ref, pipeline)
+	if err != nil {
+		return "", err
+	}
+
+	if err := c.Store.SetPipelineVariables(ctx, pipeline, variables); err != nil {
+		logPipelineCacheError(ctx, err, "write pipeline variables cache", pipeline.ID)
+	}
+
+	return variables, nil
+}
+
+func logPipelineCacheError(ctx context.Context, err error, operation string, pipelineID int64) {
+	log.WithContext(ctx).
+		WithField("pipeline-id", pipelineID).
+		WithError(err).
+		Warn(operation + ", continuing without cache")
 }

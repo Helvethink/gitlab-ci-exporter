@@ -76,7 +76,25 @@ func (c *Controller) bindLifecycle(ctx context.Context) context.Context {
 	return bound
 }
 
-// Close stops background work and closes the task queue, Redis client, and tracer.
+// Drain stops producers and drains in-flight work: it stops the schedulers and
+// webhook intake, closes the task queue (stopping its consumers), and waits for
+// background work to finish. It does not close clients, so servers that read the
+// store (such as the monitoring server) can keep serving until they are stopped.
+// Drain is idempotent; later calls return the first result.
+func (c *Controller) Drain(ctx context.Context) error {
+	if c == nil {
+		return nil
+	}
+	shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	c.drainOnce.Do(func() {
+		c.drainErr = c.drain(shutdownCtx)
+	})
+	return c.drainErr
+}
+
+// Close drains work if Drain was not called, then closes the GitLab, Redis,
+// and tracing clients, flushing pending spans. Close is idempotent.
 func (c *Controller) Close(ctx context.Context) error {
 	if c == nil {
 		return nil
@@ -84,12 +102,12 @@ func (c *Controller) Close(ctx context.Context) error {
 	shutdownCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	c.closeOnce.Do(func() {
-		c.closeErr = c.close(shutdownCtx)
+		c.closeErr = errors.Join(c.Drain(shutdownCtx), c.closeClients(shutdownCtx))
 	})
 	return c.closeErr
 }
 
-func (c *Controller) close(ctx context.Context) error {
+func (c *Controller) drain(ctx context.Context) error {
 	if c.background != nil {
 		c.background.stop()
 	}
@@ -117,6 +135,11 @@ func (c *Controller) close(ctx context.Context) error {
 	if c.background != nil {
 		shutdownErr = errors.Join(shutdownErr, c.background.wait(ctx))
 	}
+	return shutdownErr
+}
+
+func (c *Controller) closeClients(ctx context.Context) error {
+	var shutdownErr error
 	if c.Gitlab != nil {
 		c.Gitlab.CloseIdleConnections()
 	}

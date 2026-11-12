@@ -216,6 +216,25 @@ opentelemetry:
   # (optional, default: "")
   grpc_endpoint:
 
+  # The connection to the collector uses TLS by default.
+  # Set to true to send traces in plaintext, for local development only
+  # (optional, default: false). Cannot be combined with the tls settings.
+  insecure: false
+
+  tls:
+    # PEM bundle used to verify the collector certificate
+    # (optional, default: system certificate pool)
+    ca_file:
+
+    # PEM client certificate and key for mutual TLS
+    # (optional, both must be set together)
+    cert_file:
+    key_file:
+
+    # Name used to verify the collector certificate
+    # (optional, default: host of grpc_endpoint)
+    server_name:
+
 # Exporter HTTP servers configuration
 server:
   # [address:port] to make the process listen
