@@ -31,7 +31,7 @@ func NewApp(version string, start time.Time) (app *cli.App) {
 			Name:    "internal-monitoring-listener-address",
 			Aliases: []string{"m"},
 			EnvVars: []string{"GCPE_INTERNAL_MONITORING_LISTENER_ADDRESS"},
-			Usage:   "internal monitoring listener address",
+			Usage:   "internal monitoring unix socket (unix:///path/to/socket)",
 		},
 	}
 

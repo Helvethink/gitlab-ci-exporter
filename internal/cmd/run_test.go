@@ -133,9 +133,8 @@ func TestNewHTTPServerAppliesConfiguredTimeouts(t *testing.T) {
 }
 
 func TestRunSupervisesMonitoringFailureAndShutsDown(t *testing.T) {
-	occupied, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	defer occupied.Close()
+	// The parent directory does not exist, so listening on the socket fails.
+	unusableSocket := filepath.Join(t.TempDir(), "missing", "m.sock")
 	gitlabServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte("{}"))
@@ -148,11 +147,11 @@ func TestRunSupervisesMonitoringFailureAndShutsDown(t *testing.T) {
 	ctx, flags := NewTestContext()
 	flags.String("config", configPath, "")
 	flags.String("gitlab-token", "test-token", "")
-	flags.String("internal-monitoring-listener-address", "tcp://"+occupied.Addr().String(), "")
+	flags.String("internal-monitoring-listener-address", "unix://"+unusableSocket, "")
 
 	code, err := Run(ctx)
 	require.Equal(t, 1, code)
-	require.ErrorContains(t, err, "listen for monitoring")
+	require.ErrorContains(t, err, "listen on monitoring socket")
 }
 
 func TestRunWaitsForActiveHTTPRequestOnSignal(t *testing.T) {

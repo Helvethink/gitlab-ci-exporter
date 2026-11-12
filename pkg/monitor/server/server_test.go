@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"errors"
-	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -80,7 +79,7 @@ func TestGetConfig(t *testing.T) {
 
 	got, err := s.GetConfig(context.Background(), &pb.Empty{})
 	require.NoError(t, err)
-	assert.Contains(t, got.GetContent(), "*******")
+	assert.Contains(t, got.GetContent(), "maximum_requests_per_second: 5")
 	assert.NotContains(t, got.GetContent(), "secret-token")
 	assert.NotContains(t, got.GetContent(), "webhook-secret")
 }
@@ -202,14 +201,10 @@ func TestGetTelemetryDuringConcurrentScheduleUpdates(t *testing.T) {
 }
 
 func TestServeReturnsListenerError(t *testing.T) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	defer listener.Close()
-
 	cfg := config.New()
-	cfg.Global.InternalMonitoringListenerAddress = &url.URL{Scheme: "tcp", Host: listener.Addr().String()}
+	cfg.Global.InternalMonitoringListenerAddress = &url.URL{Scheme: "unix", Path: filepath.Join(shortSocketPath(t), "missing", "m.sock")}
 	s := NewServer(&gitlab.Client{}, cfg, store.NewLocalStore(), nil)
-	require.Error(t, s.Serve(context.Background()))
+	require.ErrorContains(t, s.Serve(context.Background()), "listen on monitoring socket")
 }
 
 func TestServeStopsAndRemovesSocket(t *testing.T) {

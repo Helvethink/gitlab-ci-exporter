@@ -8,8 +8,11 @@ import (
 	"os"   // Package for OS operations
 	"time" // Package for time-related operations
 
-	log "github.com/sirupsen/logrus"                     // Logging library
-	"google.golang.org/grpc"                             // gRPC library for remote procedure calls
+	log "github.com/sirupsen/logrus" // Logging library
+	"google.golang.org/grpc"         // gRPC library for remote procedure calls
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb" // Protobuf timestamp utilities
 
 	"github.com/helvethink/gitlab-ci-exporter/pkg/config"              // Configuration package
@@ -19,6 +22,9 @@ import (
 	"github.com/helvethink/gitlab-ci-exporter/pkg/schemas"             // Schemas package
 	"github.com/helvethink/gitlab-ci-exporter/pkg/store"               // Storage package
 )
+
+// socketFileMode restricts the monitoring socket to the exporter's user.
+const socketFileMode = 0o600
 
 // Server represents a gRPC server for monitoring GitLab CI exporter.
 type Server struct {
@@ -61,42 +67,51 @@ func (s *Server) Serve(ctx context.Context) (serveErr error) {
 		"path":   address.Path,
 	}).Info("internal monitoring listener set")
 
-	var listener net.Listener
-	if address.Scheme == "unix" {
-		unixAddress, err := net.ResolveUnixAddr("unix", address.Path)
-		if err != nil {
-			return fmt.Errorf("resolve monitoring socket: %w", err)
+	if err := monitor.ValidateListenerAddress(address); err != nil {
+		return err
+	}
+
+	unixAddress, err := net.ResolveUnixAddr("unix", address.Path)
+	if err != nil {
+		return fmt.Errorf("resolve monitoring socket: %w", err)
+	}
+	if info, err := os.Lstat(address.Path); err == nil {
+		if info.Mode()&os.ModeSocket == 0 {
+			return fmt.Errorf("monitoring socket path %q exists and is not a socket", address.Path)
 		}
-		if _, err := os.Stat(address.Path); err == nil {
-			if err := os.Remove(address.Path); err != nil {
-				return fmt.Errorf("remove existing monitoring socket: %w", err)
-			}
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("stat monitoring socket: %w", err)
+		if err := os.Remove(address.Path); err != nil {
+			return fmt.Errorf("remove existing monitoring socket: %w", err)
 		}
-		listener, err = net.ListenUnix("unix", unixAddress)
-		if err != nil {
-			return fmt.Errorf("listen on monitoring socket: %w", err)
-		}
-	} else {
-		var err error
-		listener, err = net.Listen(address.Scheme, address.Host)
-		if err != nil {
-			return fmt.Errorf("listen for monitoring: %w", err)
-		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("stat monitoring socket: %w", err)
+	}
+	unixListener, err := net.ListenUnix("unix", unixAddress)
+	if err != nil {
+		return fmt.Errorf("listen on monitoring socket: %w", err)
 	}
 	defer func() {
-		if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		if err := unixListener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			serveErr = errors.Join(serveErr, fmt.Errorf("close monitoring listener: %w", err))
 		}
-		if address.Scheme == "unix" {
-			if err := os.Remove(address.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
-				serveErr = errors.Join(serveErr, fmt.Errorf("remove monitoring socket: %w", err))
-			}
+		if err := os.Remove(address.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			serveErr = errors.Join(serveErr, fmt.Errorf("remove monitoring socket: %w", err))
 		}
 	}()
 
-	grpcServer := grpc.NewServer()
+	// Only the exporter's user may connect. Peer credentials are also checked on
+	// each connection, which covers the window before this chmod.
+	if err := os.Chmod(address.Path, socketFileMode); err != nil {
+		return fmt.Errorf("restrict monitoring socket permissions: %w", err)
+	}
+	listener := newMonitoringListener(unixListener)
+
+	grpcServer := grpc.NewServer(
+		grpc.MaxConcurrentStreams(maxStreamsPerConnection),
+		grpc.MaxRecvMsgSize(maxRequestBytes),
+		grpc.ConnectionTimeout(5*time.Second),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{MinTime: 10 * time.Second}),
+		grpc.KeepaliveParams(keepalive.ServerParameters{MaxConnectionIdle: 5 * time.Minute}),
+	)
 	pb.RegisterMonitorServer(grpcServer, s)
 	watcherDone := make(chan struct{})
 	watcherFinished := make(chan struct{})
@@ -120,7 +135,7 @@ func (s *Server) Serve(ctx context.Context) (serveErr error) {
 		}
 	}()
 
-	err := grpcServer.Serve(listener)
+	err = grpcServer.Serve(listener)
 	close(watcherDone)
 	<-watcherFinished
 	if ctx.Err() != nil {
@@ -132,12 +147,14 @@ func (s *Server) Serve(ctx context.Context) (serveErr error) {
 	return errors.New("monitoring server stopped unexpectedly")
 }
 
-// GetConfig retrieves the server configuration.
-func (s *Server) GetConfig(ctx context.Context, _ *pb.Empty) (*pb.Config, error) {
-	// Return the configuration as a protobuf Config message
-	return &pb.Config{
-		Content: s.cfg.ToYAML(),
-	}, nil
+// GetConfig returns the allowlisted configuration view. It never includes
+// tokens, secrets, or connection strings.
+func (s *Server) GetConfig(_ context.Context, _ *pb.Empty) (*pb.Config, error) {
+	content, err := s.cfg.MonitoringView().YAML()
+	if err != nil {
+		return nil, status.Error(codes.Internal, "render configuration")
+	}
+	return &pb.Config{Content: content}, nil
 }
 
 // GetTelemetry streams telemetry data to the client.

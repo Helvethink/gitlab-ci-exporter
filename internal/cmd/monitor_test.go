@@ -7,13 +7,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/helvethink/gitlab-ci-exporter/pkg/monitor"
 )
 
 func TestMonitor(t *testing.T) {
 	ctx, flags := NewTestContext()
 	ctx.App.Version = "1.2.3"
 	flags.String("internal-monitoring-listener-address", "", "")
-	require.NoError(t, flags.Set("internal-monitoring-listener-address", "http://127.0.0.1:8081"))
+	require.NoError(t, flags.Set("internal-monitoring-listener-address", "unix:///tmp/gcpe-monitor.sock"))
 
 	var (
 		called         bool
@@ -38,7 +40,7 @@ func TestMonitor(t *testing.T) {
 	assert.True(t, called)
 	assert.Equal(t, "1.2.3", gotVersion)
 	require.NotNil(t, gotListenerURL)
-	assert.Equal(t, "http://127.0.0.1:8081", gotListenerURL.String())
+	assert.Equal(t, "unix:///tmp/gcpe-monitor.sock", gotListenerURL.String())
 }
 
 func TestMonitorReturnsErrorWhenInternalMonitoringAddressIsInvalid(t *testing.T) {
@@ -89,7 +91,7 @@ func TestMonitorWithoutInternalMonitoringAddress(t *testing.T) {
 func TestMonitorReturnsUIError(t *testing.T) {
 	ctx, flags := NewTestContext()
 	flags.String("internal-monitoring-listener-address", "", "")
-	require.NoError(t, flags.Set("internal-monitoring-listener-address", "tcp://127.0.0.1:8081"))
+	require.NoError(t, flags.Set("internal-monitoring-listener-address", "unix:///tmp/gcpe-monitor.sock"))
 	uiErr := errors.New("monitoring connection failed")
 	previousStart := startMonitorUI
 	startMonitorUI = func(string, *url.URL) error { return uiErr }
@@ -97,4 +99,27 @@ func TestMonitorReturnsUIError(t *testing.T) {
 	code, err := Monitor(ctx)
 	require.ErrorIs(t, err, uiErr)
 	assert.Equal(t, 1, code)
+}
+
+func TestMonitorRejectsNonUnixAddresses(t *testing.T) {
+	for _, address := range []string{"tcp://127.0.0.1:8081", "http://127.0.0.1:8081", "tcp://0.0.0.0:8081"} {
+		t.Run(address, func(t *testing.T) {
+			ctx, flags := NewTestContext()
+			flags.String("internal-monitoring-listener-address", "", "")
+			require.NoError(t, flags.Set("internal-monitoring-listener-address", address))
+
+			called := false
+			previousStart := startMonitorUI
+			startMonitorUI = func(string, *url.URL) error {
+				called = true
+				return nil
+			}
+			t.Cleanup(func() { startMonitorUI = previousStart })
+
+			code, err := Monitor(ctx)
+			require.ErrorIs(t, err, monitor.ErrUnsupportedListenerAddress)
+			assert.Equal(t, 1, code)
+			assert.False(t, called)
+		})
+	}
 }
