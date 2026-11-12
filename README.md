@@ -233,6 +233,25 @@ opentelemetry:
   # (optional, default: "")
   grpc_endpoint:
 
+  # The connection to the collector uses TLS by default.
+  # Set to true to send traces in plaintext, for local development only
+  # (optional, default: false). Cannot be combined with the tls settings.
+  insecure: false
+
+  tls:
+    # PEM bundle used to verify the collector certificate
+    # (optional, default: system certificate pool)
+    ca_file:
+
+    # PEM client certificate and key for mutual TLS
+    # (optional, both must be set together)
+    cert_file:
+    key_file:
+
+    # Name used to verify the collector certificate
+    # (optional, default: host of grpc_endpoint)
+    server_name:
+
 # Exporter HTTP servers configuration
 server:
   # [address:port] to make the process listen
@@ -867,3 +886,16 @@ Access controls:
 - `GetConfig` returns an allowlisted summary: settings, schedules, integration toggles, and project counts. It never includes the GitLab token, the webhook secret, the Redis URL, URL credentials, or per-project settings.
 
 To use the monitor from a container, share the socket directory as a volume and run both processes as the same user.
+
+### Shutdown
+
+On `SIGTERM`, `SIGINT`, or `SIGABRT`, or when a component such as an HTTP listener fails, the exporter shuts down in a fixed order. Each phase has its own time budget:
+
+| Phase | Budget | What happens |
+| --- | --- | --- |
+| Stop intake | 5s | The public and pprof HTTP servers stop accepting requests and wait for active ones. |
+| Stop producers and drain work | 8s | Schedulers and webhook intake stop, the task queue and its consumers close, and in-flight tasks and webhook events finish or are cancelled. |
+| Stop servers | 5s | The internal monitoring gRPC server stops. |
+| Close clients and flush tracing | 5s | The GitLab and Redis clients close, and pending spans are exported. |
+
+The whole sequence is bounded to 25 seconds, below the default Kubernetes termination grace period of 30 seconds. A phase that fails or times out is logged, and the later phases still run. A second signal during shutdown terminates the process immediately.

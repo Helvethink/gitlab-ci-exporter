@@ -20,7 +20,6 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc"
 
 	"github.com/helvethink/gitlab-ci-exporter/pkg/config"
 	"github.com/helvethink/gitlab-ci-exporter/pkg/gitlab"
@@ -47,6 +46,8 @@ type Controller struct {
 	UUID                   uuid.UUID
 	redisReady             atomic.Bool
 	background             *backgroundTasks
+	drainOnce              sync.Once
+	drainErr               error
 	closeOnce              sync.Once
 	closeErr               error
 	tracerProvider         *sdktrace.TracerProvider
@@ -82,7 +83,7 @@ func New(ctx context.Context, cfg config.Config, version string) (c *Controller,
 	if cfg.OpenTelemetry.GRPCEndpoint != "" {
 		c.previousTracerProvider = otel.GetTracerProvider()
 	}
-	if c.tracerProvider, err = configureTracing(lifecycleCtx, cfg.OpenTelemetry.GRPCEndpoint); err != nil {
+	if c.tracerProvider, err = configureTracing(lifecycleCtx, cfg.OpenTelemetry); err != nil {
 		return
 	}
 
@@ -194,24 +195,30 @@ func (c *Controller) dequeueTask(ctx context.Context, tt schemas.TaskType, uniqu
 
 // configureTracing sets up OpenTelemetry tracing via a gRPC endpoint.
 // If no endpoint is provided, tracing support is skipped.
-func configureTracing(ctx context.Context, grpcEndpoint string) (*sdktrace.TracerProvider, error) {
+//
+// The connection uses TLS unless cfg.Insecure is explicitly enabled. The dial is
+// not blocking: an unreachable collector delays span export, not startup.
+func configureTracing(ctx context.Context, cfg config.OpenTelemetry) (*sdktrace.TracerProvider, error) {
+	grpcEndpoint := cfg.GRPCEndpoint
 	// If no gRPC endpoint is specified, log that tracing will be skipped and return nil
 	if len(grpcEndpoint) == 0 {
 		log.Debug("open-telemetry.grpc_endpoint is not configured, skipping open telemetry support")
 		return nil, nil
 	}
 
-	// Log that a gRPC endpoint is configured and tracing initialization is starting
+	transport, err := otlpTransportOption(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	log.WithFields(log.Fields{
-		"open-telemetry_grpc_endpoint": grpcEndpoint,
+		"open-telemetry_grpc_endpoint": config.RedactURL(grpcEndpoint),
+		"open-telemetry_insecure":      cfg.Insecure,
 	}).Info("open-telemetry gRPC endpoint provided, initializing connection..")
 
-	// Create a new OpenTelemetry gRPC trace client with insecure connection, connecting to the given endpoint,
-	// and block until the connection is established
 	traceClient := otlptracegrpc.NewClient(
-		otlptracegrpc.WithInsecure(),
+		transport,
 		otlptracegrpc.WithEndpoint(grpcEndpoint),
-		otlptracegrpc.WithDialOption(grpc.WithBlock()), // nolint: staticcheck
 	)
 
 	// Create a new trace exporter using the gRPC trace client

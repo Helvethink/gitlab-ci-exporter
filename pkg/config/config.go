@@ -51,6 +51,29 @@ type Log struct {
 type OpenTelemetry struct {
 	// GRPCEndpoint is the gRPC address of the OpenTelemetry collector to send traces/metrics to.
 	GRPCEndpoint string `yaml:"grpc_endpoint"`
+
+	// Insecure disables transport security for the OTLP/gRPC connection.
+	// Defaults to false: TLS is used. Enable only for local development.
+	Insecure bool `default:"false" yaml:"insecure"`
+
+	// TLS configures the OTLP/gRPC TLS connection. Ignored when Insecure is true.
+	TLS OpenTelemetryTLS `yaml:"tls"`
+}
+
+// OpenTelemetryTLS configures TLS for the OTLP/gRPC exporter.
+type OpenTelemetryTLS struct {
+	// CAFile is a PEM bundle used to verify the collector certificate.
+	// Defaults to the system certificate pool.
+	CAFile string `yaml:"ca_file"`
+
+	// CertFile and KeyFile are a PEM client certificate and key for mutual TLS.
+	// Both must be set together.
+	CertFile string `validate:"required_with=KeyFile" yaml:"cert_file"`
+	KeyFile  string `validate:"required_with=CertFile" yaml:"key_file"`
+
+	// ServerName overrides the name used to verify the collector certificate.
+	// Defaults to the host of GRPCEndpoint.
+	ServerName string `yaml:"server_name"`
 }
 
 // Server holds the configuration for the HTTP server.

@@ -192,3 +192,40 @@ func TestControllerCloseHonorsDeadline(t *testing.T) {
 	<-exited
 	assert.True(t, errors.Is(c.Close(context.Background()), context.DeadlineExceeded))
 }
+
+func TestControllerDrainStopsWorkButKeepsClientsOpen(t *testing.T) {
+	mr := miniredis.RunT(t)
+	redisClient := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	appCtx, cancel := context.WithCancel(context.Background())
+	exporter := &shutdownSpanExporter{}
+	c := &Controller{
+		Redis:          redisClient,
+		Store:          store.NewRedisStore(redisClient),
+		TaskController: NewTaskController(appCtx, redisClient, 10),
+		UUID:           uuid.New(),
+		background:     &backgroundTasks{cancel: cancel},
+		tracerProvider: sdktrace.NewTracerProvider(sdktrace.WithBatcher(exporter)),
+	}
+	require.NoError(t, c.TaskController.Factory.StartConsumers(appCtx))
+	exited := make(chan struct{})
+	require.True(t, c.startBackground(func() {
+		<-appCtx.Done()
+		close(exited)
+	}))
+
+	shutdownCtx, stop := context.WithTimeout(context.Background(), 3*time.Second)
+	defer stop()
+	require.NoError(t, c.Drain(shutdownCtx))
+
+	// Work is drained and producers are stopped...
+	<-exited
+	assert.False(t, c.startBackground(func() {}))
+	// ...but clients stay usable until Close, so servers can still read the store.
+	require.NoError(t, redisClient.Ping(context.Background()).Err())
+	assert.False(t, exporter.stopped)
+	require.NoError(t, c.Drain(shutdownCtx), "Drain is idempotent")
+
+	require.NoError(t, c.Close(shutdownCtx))
+	assert.ErrorIs(t, redisClient.Ping(context.Background()).Err(), redis.ErrClosed)
+	assert.True(t, exporter.stopped)
+}

@@ -69,7 +69,7 @@ func TestDequeueTaskRemovesTaskFromStore(t *testing.T) {
 }
 
 func TestConfigureTracingWithoutEndpointReturnsNil(t *testing.T) {
-	provider, err := configureTracing(context.Background(), "")
+	provider, err := configureTracing(context.Background(), config.OpenTelemetry{})
 	assert.NoError(t, err)
 	assert.Nil(t, provider)
 }

@@ -113,9 +113,15 @@ type model struct {
 	tabID           int
 }
 
+// configRequestTimeout bounds the configuration request so a stalled server
+// cannot freeze the UI.
+const configRequestTimeout = 5 * time.Second
+
 // renderConfigViewport renders the configuration viewport content.
 func (m *model) renderConfigViewport() string {
-	config, err := m.client.GetConfig(context.TODO(), &pb.Empty{})
+	ctx, cancel := context.WithTimeout(m.streamContext, configRequestTimeout)
+	defer cancel()
+	config, err := m.client.GetConfig(ctx, &pb.Empty{})
 	if err != nil || config == nil {
 		return fmt.Sprintf("Unable to load configuration: %v", err)
 	}
