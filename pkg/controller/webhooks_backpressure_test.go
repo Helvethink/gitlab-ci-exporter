@@ -325,4 +325,3 @@ func TestWebhookEachEventRunsInItsOwnSpan(t *testing.T) {
 	}
 	assert.Len(t, parents, len(bodies))
 }
-
