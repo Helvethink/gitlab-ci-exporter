@@ -160,9 +160,8 @@ func FuzzWebhookProcessing(f *testing.F) {
 			return
 		}
 
-		c := *base
-		c.Store = store.NewLocalStore()
-		h := &webhookHandler{controller: &c}
+		c := &Controller{Config: base.Config, Gitlab: base.Gitlab, Store: store.NewLocalStore()}
+		h := &webhookHandler{controller: c}
 		h.processWebhookEvent(context.Background(), event)
 	})
 }
