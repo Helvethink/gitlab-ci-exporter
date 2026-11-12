@@ -23,6 +23,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
@@ -79,6 +84,7 @@ jobs:
           format: sarif
           output: trivy-results.sarif
           severity: HIGH,CRITICAL
+          limit-severities-for-sarif: true
           ignore-unfixed: true
           exit-code: 1
 
