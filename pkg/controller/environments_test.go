@@ -112,7 +112,7 @@ func TestPullEnvironmentsFromProject(t *testing.T) {
 		}
 	})
 
-	c.TaskController = NewTaskController(ctx, nil, 10)
+	c.TaskController = newTestTaskController(t, ctx, nil, 10)
 	c.UUID = uuid.New()
 	registerNoopPullEnvironmentMetricsTask(t, c)
 

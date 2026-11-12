@@ -1,0 +1,3 @@
+go test fuzz v1
+string("Job Hook")
+[]byte("{\"object_kind\":\"tag_push\",\"ref\":\"refs/tags/v1\",\"after\":\"0000000000000000000000000000000000000000\",\"project\":{\"path_Bith_namespace\":\"group/project\"}}")

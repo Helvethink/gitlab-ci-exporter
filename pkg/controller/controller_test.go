@@ -19,7 +19,7 @@ import (
 func TestRegisterTasksRegistersAllHandlers(t *testing.T) {
 	ctx := context.Background()
 	c := &Controller{
-		TaskController: NewTaskController(ctx, nil, 10),
+		TaskController: newTestTaskController(t, ctx, nil, 10),
 	}
 
 	c.registerTasks()

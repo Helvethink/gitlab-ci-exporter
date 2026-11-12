@@ -85,7 +85,7 @@ func TestPullRefsFromProject(t *testing.T) {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
 	})
-	c.TaskController = NewTaskController(ctx, nil, 10)
+	c.TaskController = newTestTaskController(t, ctx, nil, 10)
 	c.UUID = uuid.New()
 	registerNoopPullRefMetricsTask(t, c)
 

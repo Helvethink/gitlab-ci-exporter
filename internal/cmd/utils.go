@@ -5,6 +5,7 @@ import (
 	stdlibLog "log"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-logr/stdr"
@@ -18,6 +19,18 @@ import (
 )
 
 var start time.Time
+
+// levelWriter writes each line it receives to the standard logrus logger at a
+// fixed level. Unlike logrus' Entry.WriterLevel, it starts no goroutine and
+// needs no Close, so configuring logging repeatedly leaks nothing.
+type levelWriter struct {
+	level log.Level
+}
+
+func (w levelWriter) Write(p []byte) (int, error) {
+	log.StandardLogger().Log(w.level, strings.TrimRight(string(p), "\n"))
+	return len(p), nil
+}
 
 // configure loads and validates configuration from CLI context, sets up logging, and prints scheduler settings.
 // It returns a populated config object or an error.
@@ -65,7 +78,7 @@ func configure(ctx *cli.Context) (cfg config.Config, err error) {
 	))
 
 	// Redirect task queue logs to the main log system using standard library compatibility
-	taskq.SetLogger(stdr.New(stdlibLog.New(log.StandardLogger().WriterLevel(log.WarnLevel), "taskq", 0)))
+	taskq.SetLogger(stdr.New(stdlibLog.New(levelWriter{level: log.WarnLevel}, "taskq", 0)))
 
 	// Log general GitLab configuration
 	log.WithFields(
