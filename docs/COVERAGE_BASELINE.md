@@ -61,3 +61,23 @@ Function counts come from `go tool cover -func`.
 | `pkg/schemas` | 93.5% |
 
 `cmd/gitlab-ci-exporter` and `pkg/monitor/protobuf` (generated code) have no tests.
+
+## After Phase 4 (2026-11-12)
+
+Measured on branch `feature/regression-coverage` (commit `7c1c136` plus `pkg/monitor/server/failure_paths_test.go`) with the same command and toolchain.
+
+Total statement coverage: **83.3%** (baseline 67.2%).
+
+| Package | Baseline | After Phase 4 | Functions at 0% |
+| --- | ---: | ---: | ---: |
+| `pkg/controller` | 58.6% | 83.0% | 0 of 162 |
+| `pkg/store` | 76.1% | 93.8% | 0 of 113 |
+| `pkg/monitor/server` | 85.3% | 90.9% | 0 of 8 |
+| `pkg/monitor/ui` | 13.7% | 92.6% | 0 of 12 |
+| `pkg/ratelimit` | 86.7% | 86.7% | 0 of 6 |
+
+What is left uncovered is mostly unreachable from tests:
+
+- marshalling failures of fixed types;
+- OS-level failures, such as `chmod` or `stat` on the monitoring socket;
+- the part of `ui.Start` that runs the full-screen terminal program.
