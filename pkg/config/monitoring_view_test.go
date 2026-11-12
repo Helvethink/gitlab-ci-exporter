@@ -41,11 +41,13 @@ func TestToYAMLRedactsCredentials(t *testing.T) {
 
 func TestRedactURL(t *testing.T) {
 	tests := map[string]string{
-		"":                                      "",
-		"https://gitlab.com":                    "https://gitlab.com",
-		"redis://default:pw@redis:6379/0":       "redis://redacted@redis:6379/0",
-		"redis://:pw@redis:6379":                "redis://redacted@redis:6379",
-		"https://gitlab.com/?private_token=abc": "https://gitlab.com/?redacted",
+		"":                                        "",
+		"https://gitlab.com":                      "https://gitlab.com",
+		"redis://default:pw@redis:6379/0":         "redis://redacted@redis:6379/0",
+		"redis://:pw@redis:6379":                  "redis://redacted@redis:6379",
+		"https://gitlab.com/?private_token=abc":   "https://gitlab.com/?redacted",
+		"default:pw@redis:6379":                   "default:redacted@redis:6379",
+		"localhost:4317":                          "localhost:4317",
 		"redis://user:p%zzw@redis:6379 (invalid)": "*******",
 	}
 	for in, want := range tests {

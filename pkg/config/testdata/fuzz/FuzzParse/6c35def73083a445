@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("redis:\n url: fuzzsecretvalue0123456789")

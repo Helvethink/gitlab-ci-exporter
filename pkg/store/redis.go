@@ -89,15 +89,26 @@ func WithTTLConfig(opts *RedisTTLConfig) func(*RedisStoreConfig) {
 //	}
 type RedisStoreOptions func(opts *RedisStoreConfig)
 
-// HasProjectExpired checks if a project key's TTL entry still exists in Redis.
-// Returns true if the TTL key exists (meaning it has not yet expired), and false otherwise.
-// If there's an error querying Redis, it fails safe and returns false.
-func (r *Redis) HasProjectExpired(ctx context.Context, key schemas.ProjectKey) bool {
-	reply, err := r.Exists(ctx, getTTLProjectKey(key)).Result()
-	if err != nil {
-		return false // On Redis error, assume expired (avoid false positives)
+// hasExpired reports whether an entry has outlived its TTL, which is the case
+// when its TTL key no longer exists.
+//
+// It fails safe: without a TTL configuration entries never expire, and on a
+// Redis error the entry is reported as not expired, so garbage collection never
+// deletes data because Redis could not be queried.
+func (r *Redis) hasExpired(ctx context.Context, ttlKey string) bool {
+	if r.StoreConfig == nil || r.StoreConfig.TTLConfig == nil {
+		return false
 	}
-	return reply > 0 // Redis EXISTS returns >0 if the key exists
+	reply, err := r.Exists(ctx, ttlKey).Result()
+	if err != nil {
+		return false
+	}
+	return reply == 0
+}
+
+// HasProjectExpired reports whether the TTL entry of the given key has expired.
+func (r *Redis) HasProjectExpired(ctx context.Context, key schemas.ProjectKey) bool {
+	return r.hasExpired(ctx, getTTLProjectKey(key))
 }
 
 // getTTLProjectKey formats the Redis TTL key name for a given project.
@@ -106,14 +117,9 @@ func getTTLProjectKey(key schemas.ProjectKey) string {
 	return fmt.Sprintf("%s:%s", redisProjectsKey, key)
 }
 
-// need the method: HasEnvExpired(ctx context.Context, key schemas.RefKey) bool
-// HasEnvExpired checks if an environment key's TTL entry still exists in Redis.
+// HasEnvExpired reports whether the TTL entry of the given key has expired.
 func (r *Redis) HasEnvExpired(ctx context.Context, key schemas.EnvironmentKey) bool {
-	reply, err := r.Exists(ctx, getTTLEnvKey(key)).Result()
-	if err != nil {
-		return false
-	}
-	return reply > 0
+	return r.hasExpired(ctx, getTTLEnvKey(key))
 }
 
 // getTTLEnvKey formats the Redis TTL key name for a given environment.
@@ -121,13 +127,9 @@ func getTTLEnvKey(key schemas.EnvironmentKey) string {
 	return fmt.Sprintf("%s:%s", redisEnvironmentsKey, key)
 }
 
-// HasRunnerExpired checks if a runner key's TTL entry still exists in Redis.
+// HasRunnerExpired reports whether the TTL entry of the given key has expired.
 func (r *Redis) HasRunnerExpired(ctx context.Context, key schemas.RunnerKey) bool {
-	reply, err := r.Exists(ctx, getTTLRunnerKey(key)).Result()
-	if err != nil {
-		return false
-	}
-	return reply > 0
+	return r.hasExpired(ctx, getTTLRunnerKey(key))
 }
 
 // getTTLRunnerKey formats the Redis TTL key name for a given runner.
@@ -135,13 +137,9 @@ func getTTLRunnerKey(key schemas.RunnerKey) string {
 	return fmt.Sprintf("%s:%s", redisRunnerKey, key)
 }
 
-// HasRefExpired checks if a ref key's TTL entry still exists in Redis.
+// HasRefExpired reports whether the TTL entry of the given key has expired.
 func (r *Redis) HasRefExpired(ctx context.Context, key schemas.RefKey) bool {
-	reply, err := r.Exists(ctx, getTTLRefKey(key)).Result()
-	if err != nil {
-		return false
-	}
-	return reply > 0
+	return r.hasExpired(ctx, getTTLRefKey(key))
 }
 
 // getTTLRefKey formats the Redis TTL key name for a given ref.
@@ -149,13 +147,9 @@ func getTTLRefKey(key schemas.RefKey) string {
 	return fmt.Sprintf("%s:%s", redisRefsKey, key)
 }
 
-// HasMetricExpired checks if a metric key's TTL entry still exists in Redis.
+// HasMetricExpired reports whether the TTL entry of the given key has expired.
 func (r *Redis) HasMetricExpired(ctx context.Context, key schemas.MetricKey) bool {
-	reply, err := r.Exists(ctx, getTTLMetricKey(key)).Result()
-	if err != nil {
-		return false
-	}
-	return reply > 0
+	return r.hasExpired(ctx, getTTLMetricKey(key))
 }
 
 // getTTLMetricKey formats the Redis TTL key name for a given metric.

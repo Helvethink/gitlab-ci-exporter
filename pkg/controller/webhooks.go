@@ -568,7 +568,7 @@ func isEnvMatchingProjectPullEnvironments(ppe config.ProjectPullEnvironments, en
 // Returns true if all checks pass, false otherwise.
 func isRefMatchingWilcard(w config.Wildcard, ref schemas.Ref) (matches bool, err error) {
 	// Check if wildcard owner is specified and matches the ref's project name
-	if w.Owner.Kind != "" && !strings.Contains(ref.Project.Name, w.Owner.Name) {
+	if w.Owner.Kind != "" && !isProjectOwnedBy(ref.Project.Name, w.Owner) {
 		return
 	}
 
@@ -585,10 +585,26 @@ func isRefMatchingWilcard(w config.Wildcard, ref schemas.Ref) (matches bool, err
 // Returns true if all checks pass, false otherwise.
 func isEnvMatchingWilcard(w config.Wildcard, env schemas.Environment) (matches bool, err error) {
 	// Check if wildcard owner is specified and matches the environment's project name
-	if w.Owner.Kind != "" && !strings.Contains(env.ProjectName, w.Owner.Name) {
+	if w.Owner.Kind != "" && !isProjectOwnedBy(env.ProjectName, w.Owner) {
 		return
 	}
 
 	// Check if the environment matches the pull environments pattern/configuration of the wildcard
 	return isEnvMatchingProjectPullEnvironments(w.Pull.Environments, env)
+}
+
+// isProjectOwnedBy reports whether projectPath (for example "group/sub/app")
+// belongs to the wildcard owner, mirroring the GitLab query used for wildcard
+// discovery: the project namespace must equal the owner, or be one of its
+// subgroups when IncludeSubgroups is set.
+func isProjectOwnedBy(projectPath string, owner config.WildcardOwner) bool {
+	slash := strings.LastIndex(projectPath, "/")
+	if slash <= 0 || owner.Name == "" {
+		return false
+	}
+	namespace := projectPath[:slash]
+	if namespace == owner.Name {
+		return true
+	}
+	return owner.IncludeSubgroups && strings.HasPrefix(namespace, owner.Name+"/")
 }

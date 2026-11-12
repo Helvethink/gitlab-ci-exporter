@@ -48,7 +48,7 @@ func TestPullProject(t *testing.T) {
 			"path_with_namespace": "group/project"
 		}`))
 	})
-	c.TaskController = NewTaskController(ctx, nil, 10)
+	c.TaskController = newTestTaskController(t, ctx, nil, 10)
 	c.UUID = uuid.New()
 	registerProjectFollowUpTasks(t, c)
 
@@ -85,7 +85,7 @@ func TestPullProjectsFromWildcard(t *testing.T) {
 			{"id": 2, "path_with_namespace": "platform/app-two"}
 		]`))
 	})
-	c.TaskController = NewTaskController(ctx, nil, 10)
+	c.TaskController = newTestTaskController(t, ctx, nil, 10)
 	c.UUID = uuid.New()
 	registerProjectFollowUpTasks(t, c)
 

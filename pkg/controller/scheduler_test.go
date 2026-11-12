@@ -46,7 +46,7 @@ func TestScheduleTaskQueuesTaskOnlyOnce(t *testing.T) {
 
 	c := &Controller{
 		Store:          store.NewLocalStore(),
-		TaskController: NewTaskController(ctx, nil, 10),
+		TaskController: newTestTaskController(t, ctx, nil, 10),
 		UUID:           uuid.New(),
 	}
 	_, err := c.TaskController.TaskMap.Register(string(schemas.TaskTypePullProject), &taskq.TaskConfig{
@@ -73,7 +73,7 @@ func TestScheduleTaskQueuesTaskOnlyOnce(t *testing.T) {
 func TestScheduleTaskRollsBackFailedPublication(t *testing.T) {
 	ctx := context.Background()
 	s := store.NewLocalStore()
-	c := &Controller{Store: s, TaskController: NewTaskController(ctx, nil, 1), UUID: uuid.New()}
+	c := &Controller{Store: s, TaskController: newTestTaskController(t, ctx, nil, 1), UUID: uuid.New()}
 	_, err := c.TaskController.TaskMap.Register(string(schemas.TaskTypePullProject), &taskq.TaskConfig{
 		Handler: func(context.Context, string) error { return nil },
 	})
@@ -95,7 +95,7 @@ func TestScheduleTaskRollsBackFailedPublication(t *testing.T) {
 func TestScheduleTaskRollsBackCanceledReservation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := store.NewLocalStore()
-	c := &Controller{Store: cancelingStore{Store: s, cancel: cancel}, TaskController: NewTaskController(ctx, nil, 1), UUID: uuid.New()}
+	c := &Controller{Store: cancelingStore{Store: s, cancel: cancel}, TaskController: newTestTaskController(t, ctx, nil, 1), UUID: uuid.New()}
 	_, err := c.TaskController.TaskMap.Register(string(schemas.TaskTypePullProject), &taskq.TaskConfig{
 		Handler: func(context.Context, string) error { return nil },
 	})
@@ -115,7 +115,7 @@ func TestScheduleTaskRollsBackCanceledReservation(t *testing.T) {
 func TestScheduleTaskCapacityIsAtomic(t *testing.T) {
 	ctx := context.Background()
 	s := store.NewLocalStore()
-	c := &Controller{Store: s, TaskController: NewTaskController(ctx, nil, 1), UUID: uuid.New()}
+	c := &Controller{Store: s, TaskController: newTestTaskController(t, ctx, nil, 1), UUID: uuid.New()}
 	_, err := c.TaskController.TaskMap.Register(string(schemas.TaskTypePullProject), &taskq.TaskConfig{
 		Handler: func(context.Context, string) error { return nil },
 	})
@@ -153,7 +153,7 @@ func TestRedisTwoControllersPreserveAndCompletePendingJobs(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	publisher := &Controller{Redis: client, Store: store.NewRedisStore(client), UUID: uuid.New()}
-	publisher.TaskController = NewTaskController(ctx, client, 1)
+	publisher.TaskController = newTestTaskController(t, ctx, client, 1)
 	_, err = publisher.TaskController.TaskMap.Register(string(schemas.TaskTypePullProject), &taskq.TaskConfig{
 		Handler: func(context.Context, string) error { t.Error("publisher consumed its own job"); return nil },
 	})
@@ -164,7 +164,7 @@ func TestRedisTwoControllersPreserveAndCompletePendingJobs(t *testing.T) {
 
 	// The second controller is constructed after publication; startup must preserve the job.
 	consumer := &Controller{Redis: client, Store: store.NewRedisStore(client), UUID: uuid.New()}
-	consumer.TaskController = NewTaskController(ctx, client, 1)
+	consumer.TaskController = newTestTaskController(t, ctx, client, 1)
 	completed := make(chan string, 20)
 	_, err = consumer.TaskController.TaskMap.Register(string(schemas.TaskTypePullProject), &taskq.TaskConfig{
 		Handler: func(ctx context.Context, id string) error {
@@ -210,7 +210,7 @@ func TestRedisShutdownCompletesActiveTaskReservation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	publisher := &Controller{Redis: client, Store: store.NewRedisStore(client), UUID: uuid.New()}
-	publisher.TaskController = NewTaskController(ctx, client, 1)
+	publisher.TaskController = newTestTaskController(t, ctx, client, 1)
 	_, err = publisher.TaskController.TaskMap.Register(string(schemas.TaskTypePullProject), &taskq.TaskConfig{
 		Handler: func(context.Context, string) error { return nil },
 	})
@@ -219,7 +219,7 @@ func TestRedisShutdownCompletesActiveTaskReservation(t *testing.T) {
 	require.NoError(t, err)
 
 	consumer := &Controller{Redis: client, Store: store.NewRedisStore(client), UUID: uuid.New()}
-	consumer.TaskController = NewTaskController(ctx, client, 1)
+	consumer.TaskController = newTestTaskController(t, ctx, client, 1)
 	started := make(chan struct{})
 	finished := make(chan struct{})
 	release := make(chan struct{})
@@ -303,7 +303,7 @@ func TestRedisRestartTakeoverSkipsStalePendingJob(t *testing.T) {
 	defer cancel()
 
 	old := &Controller{Redis: client, Store: store.NewRedisStore(client), UUID: uuid.New()}
-	old.TaskController = NewTaskController(ctx, client, 2)
+	old.TaskController = newTestTaskController(t, ctx, client, 2)
 	_, err = old.TaskController.TaskMap.Register(string(schemas.TaskTypePullProject), &taskq.TaskConfig{
 		Handler: func(context.Context, string) error { return nil },
 	})
@@ -314,7 +314,7 @@ func TestRedisRestartTakeoverSkipsStalePendingJob(t *testing.T) {
 	mr.FastForward(2 * time.Second)
 
 	replacement := &Controller{Redis: client, Store: store.NewRedisStore(client), UUID: uuid.New()}
-	replacement.TaskController = NewTaskController(ctx, client, 2)
+	replacement.TaskController = newTestTaskController(t, ctx, client, 2)
 	var calls atomic.Int32
 	done := make(chan struct{}, 1)
 	_, err = replacement.TaskController.TaskMap.Register(string(schemas.TaskTypePullProject), &taskq.TaskConfig{

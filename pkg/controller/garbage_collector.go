@@ -218,6 +218,7 @@ func (c *Controller) GarbageCollectRefs(ctx context.Context) error {
 			if err = deleteRef(ctx, c.Store, ref, "invalid-ref-kind"); err != nil {
 				return err
 			}
+			continue
 		}
 
 		// If the ref's name does not match the configured regex, delete it
@@ -225,6 +226,7 @@ func (c *Controller) GarbageCollectRefs(ctx context.Context) error {
 			if err = deleteRef(ctx, c.Store, ref, "ref-not-matching-regexp"); err != nil {
 				return err
 			}
+			continue
 		}
 
 		// Load the latest project configuration from the store to verify sync status

@@ -2,6 +2,7 @@ package config
 
 import (
 	"net/url"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -126,7 +127,7 @@ func (v MonitoringView) YAML() (string, error) {
 	return string(b), nil
 }
 
-// RedactURL removes credentials (user info) and the query string from a URL.
+// RedactURL removes credentials (user info), the query string, and the fragment from a URL.
 // A value that cannot be parsed is fully redacted, because it may still hold a secret.
 func RedactURL(raw string) string {
 	if raw == "" {
@@ -139,8 +140,16 @@ func RedactURL(raw string) string {
 	if u.User != nil {
 		u.User = url.User("redacted")
 	}
-	if u.RawQuery != "" {
+	// Without "//", "user:password@host" parses as scheme "user" with the opaque
+	// part "password@host". Redact everything before the last "@".
+	if at := strings.LastIndex(u.Opaque, "@"); at >= 0 {
+		u.Opaque = "redacted" + u.Opaque[at:]
+	}
+	if u.RawQuery != "" || u.ForceQuery {
 		u.RawQuery = "redacted"
+	}
+	if u.Fragment != "" {
+		u.Fragment, u.RawFragment = "redacted", ""
 	}
 	return u.String()
 }

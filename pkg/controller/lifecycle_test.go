@@ -81,7 +81,7 @@ func TestControllerCloseWaitsForActiveTask(t *testing.T) {
 	appCtx, cancel := context.WithCancel(context.Background())
 	c := &Controller{
 		Store:          store.NewLocalStore(),
-		TaskController: NewTaskController(appCtx, nil, 10),
+		TaskController: newTestTaskController(t, appCtx, nil, 10),
 		UUID:           uuid.New(),
 		background:     &backgroundTasks{cancel: cancel},
 	}
@@ -128,7 +128,7 @@ func TestControllerCloseStopsRedisAndBackgroundWork(t *testing.T) {
 	c := &Controller{
 		Redis:          redisClient,
 		Store:          store.NewRedisStore(redisClient),
-		TaskController: NewTaskController(appCtx, redisClient, 10),
+		TaskController: newTestTaskController(t, appCtx, redisClient, 10),
 		UUID:           uuid.New(),
 		background:     &backgroundTasks{cancel: cancel},
 	}
