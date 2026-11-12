@@ -29,5 +29,5 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           # Keep in sync with GOLANGCI_LINT_VERSION in the Makefile.
-          version: v2.12.2
+          version: v2.15.0
           args: -c .golangci.yml
